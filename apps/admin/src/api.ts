@@ -1,5 +1,7 @@
 const TOKEN_KEY = "status_admin_token";
 
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -23,11 +25,11 @@ export async function api<T = unknown>(
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(opts.json);
   }
-  const res = await fetch(path, { ...opts, headers, body });
+  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers, body });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`);
+    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
   }
   return data as T;
 }

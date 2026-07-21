@@ -1,29 +1,33 @@
-# DigitalOcean App Platform
+# Deploy
 
-Önemli: Bu repo **Functions değil**. `packages/` klasörü DO Functions’ı tetikliyordu; artık `libs/`.
+## Cloudflare Pages — Admin (önerilen)
 
-## Mevcut bozuk App’i düzelt
+Sadece admin UI. API Cloudflare Pages’te çalışmaz.
 
-1. App’i **sil** (Functions olarak oluşturulmuş)
-2. **Create App** → GitHub `akaderkin/status`
-3. Resource olarak şunları ekle (Detect edilen Function’ları **Add etme / Remove**):
-   - **Web Service**
-     - Type: Dockerfile
-     - Dockerfile path: `apps/api/Dockerfile`
-     - HTTP port: `3000`
-     - Health check: `/health`
-   - **Worker**
-     - Type: Dockerfile  
-     - Dockerfile path: `apps/worker/Dockerfile`
-4. Environment variables’ı ekle
-5. Valkey → Trusted Sources → bu App
+1. Cloudflare → Workers & Pages → Create → Connect `akaderkin/status`
+2. Ayarlar:
+   - **Build command:** `npm ci && npm run build -w @status/admin`
+   - **Build output directory:** `apps/admin/dist`
+   - **Root:** `/`
+3. Env (Build):
+   - `VITE_API_URL` = `https://api.senin-domain.com` (API URL’in)
+4. Deploy
 
-Veya spec ile:
+Login sonrası admin API’ye CORS ile bağlanır → API’de:
+```
+CORS_ORIGIN=https://status-admin.pages.dev,https://admin.senin-domain.com
+```
+
+## API + Worker (zorunlu ayrı host)
+
+IMAP worker + Prisma uzun süreç ister. Seçenekler:
+
+- DigitalOcean App Platform → **Dockerfile** Web Service + Worker  
+  (`apps/api/Dockerfile`, `apps/worker/Dockerfile`) — Functions/buildpack değil
+- Fly.io / Railway / tek Droplet + docker compose
 
 ```bash
 doctl apps create --spec .do/app.yaml
 ```
 
-## Cloudflare Admin
-
-`apps/admin` → Cloudflare Pages. DO’ya koyma.
+Buildpack (Heroku-style) kullanırsan `npm run build` artık `prisma generate` yapar.

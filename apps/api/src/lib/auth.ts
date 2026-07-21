@@ -22,7 +22,7 @@ export async function requireAgent(request: FastifyRequest, reply: FastifyReply)
   });
 
   const hash = hashToken(token);
-  const node = candidates.find((n) => safeEqual(n.tokenHash, hash));
+  const node = candidates.find((n: { tokenHash: string }) => safeEqual(n.tokenHash, hash));
   if (!node) {
     return reply.code(401).send({ error: "Invalid agent token" });
   }

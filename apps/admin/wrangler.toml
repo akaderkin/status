@@ -1,0 +1,18 @@
+# Cloudflare Pages — Admin only
+#
+# Build settings:
+#   Framework preset: Vite
+#   Root directory:   /  (repo root)
+#   Build command:    npm ci && npm run build -w @status/admin
+#   Build output:     apps/admin/dist
+#
+# Environment variable (Production):
+#   VITE_API_URL = https://YOUR-API-HOST
+#
+# API + worker Cloudflare Pages'te çalışmaz; ayrı container (DO Dockerfile / Fly / Railway) gerekir.
+
+name = "status-admin"
+compatibility_date = "2026-07-21"
+
+[vars]
+# Set VITE_API_URL in Cloudflare dashboard for build-time injection

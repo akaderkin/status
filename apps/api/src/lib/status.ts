@@ -1,25 +1,11 @@
 import {
   aggregateOverallStatus,
   checkResultsToComponent,
+  type CheckResultStatus,
   type ComponentStatus,
   type OverallStatus,
 } from "@status/shared";
-import type { CheckResultStatus, Prisma } from "@prisma/client";
 import { prisma } from "./prisma.js";
-
-type ServiceWithRelations = Prisma.ServiceGetPayload<{
-  include: {
-    checks: {
-      include: {
-        results: true;
-        nodes: true;
-      };
-    };
-    maintenances: {
-      include: { maintenance: true };
-    };
-  };
-}>;
 
 export async function recomputeServiceStatus(serviceId: string): Promise<ComponentStatus> {
   const service = await prisma.service.findUnique({
@@ -45,7 +31,7 @@ export async function recomputeServiceStatus(serviceId: string): Promise<Compone
 
   const now = new Date();
   const activeMaintenance = service.maintenances.some(
-    (ms) =>
+    (ms: { maintenance: { status: string; startsAt: Date; endsAt: Date } }) =>
       (ms.maintenance.status === "approved" || ms.maintenance.status === "active") &&
       ms.maintenance.startsAt <= now &&
       ms.maintenance.endsAt >= now
@@ -59,21 +45,19 @@ export async function recomputeServiceStatus(serviceId: string): Promise<Compone
     return "maintenance";
   }
 
-  // Prefer latest result per node for agent checks
   const latestByNode: Array<{ status: CheckResultStatus }> = [];
   for (const check of service.checks) {
     const seen = new Set<string>();
     for (const r of check.results) {
       if (seen.has(r.nodeId)) continue;
       seen.add(r.nodeId);
-      latestByNode.push({ status: r.status });
+      latestByNode.push({ status: r.status as CheckResultStatus });
     }
   }
 
   let status: ComponentStatus =
-    latestByNode.length > 0 ? checkResultsToComponent(latestByNode) : service.status;
+    latestByNode.length > 0 ? checkResultsToComponent(latestByNode) : (service.status as ComponentStatus);
 
-  // Keep kuma/manual status if no agent results
   if (latestByNode.length === 0 && service.sourceType !== "agent") {
     status = service.status as ComponentStatus;
   }
@@ -110,7 +94,7 @@ export async function getTenantStatusPayload(slug: string) {
 
   if (!tenant) return null;
 
-  const statuses = tenant.services.map((s) => s.status as ComponentStatus);
+  const statuses = tenant.services.map((s: { status: string }) => s.status as ComponentStatus);
   const overall: OverallStatus = aggregateOverallStatus(statuses);
 
   return {
@@ -122,30 +106,58 @@ export async function getTenantStatusPayload(slug: string) {
     },
     overall,
     updatedAt: new Date().toISOString(),
-    components: tenant.services.map((s) => ({
+    components: tenant.services.map((s: {
+      id: string;
+      name: string;
+      description: string | null;
+      groupName: string | null;
+      status: string;
+    }) => ({
       id: s.id,
       name: s.name,
       description: s.description,
       group: s.groupName,
       status: s.status,
     })),
-    maintenances: tenant.maintenances.map((m) => ({
+    maintenances: tenant.maintenances.map((m: {
+      id: string;
+      title: string;
+      summary: string | null;
+      status: string;
+      startsAt: Date;
+      endsAt: Date;
+      services: Array<{ service: { id: string; name: string } }>;
+    }) => ({
       id: m.id,
       title: m.title,
       summary: m.summary,
       status: m.status,
       startsAt: m.startsAt.toISOString(),
       endsAt: m.endsAt.toISOString(),
-      services: m.services.map((x) => ({ id: x.service.id, name: x.service.name })),
+      services: m.services.map((x: { service: { id: string; name: string } }) => ({
+        id: x.service.id,
+        name: x.service.name,
+      })),
     })),
-    incidents: tenant.incidents.map((i) => ({
+    incidents: tenant.incidents.map((i: {
+      id: string;
+      title: string;
+      message: string | null;
+      status: string;
+      source: string;
+      startedAt: Date;
+      services: Array<{ service: { id: string; name: string } }>;
+    }) => ({
       id: i.id,
       title: i.title,
       message: i.message,
       status: i.status,
       source: i.source,
       startedAt: i.startedAt.toISOString(),
-      services: i.services.map((x) => ({ id: x.service.id, name: x.service.name })),
+      services: i.services.map((x: { service: { id: string; name: string } }) => ({
+        id: x.service.id,
+        name: x.service.name,
+      })),
     })),
   };
 }
