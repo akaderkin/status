@@ -10,6 +10,7 @@ INTERVAL_MS="15000"
 INSTALL_DIR="/usr/local/bin"
 ENV_DIR="/etc/status-agent"
 SERVICE_NAME="status-agent"
+GITHUB_RAW="https://raw.githubusercontent.com/akaderkin/status/main"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -44,10 +45,16 @@ case "$OS" in
   *) echo "Unsupported OS: $OS"; exit 1 ;;
 esac
 
-BINARY_URL="$API_URL/v1/agent/download/${OS}/${ARCH}"
+BINARY_NAME="status-agent-${OS}-${ARCH}"
+API_BINARY_URL="$API_URL/v1/agent/download/${OS}/${ARCH}"
+GH_BINARY_URL="$GITHUB_RAW/apps/api/public/agent/${BINARY_NAME}"
 TMP="$(mktemp)"
-echo "Downloading $BINARY_URL"
-curl -fsSL "$BINARY_URL" -o "$TMP"
+
+echo "Downloading agent binary..."
+if ! curl -fsSL "$API_BINARY_URL" -o "$TMP"; then
+  echo "API binary 404/fail — falling back to GitHub"
+  curl -fsSL "$GH_BINARY_URL" -o "$TMP"
+fi
 chmod +x "$TMP"
 install -m 0755 "$TMP" "$INSTALL_DIR/status-agent"
 rm -f "$TMP"
@@ -64,7 +71,9 @@ chmod 600 "$ENV_DIR/agent.env"
 chown -R status-agent:status-agent "$ENV_DIR" 2>/dev/null || true
 
 if [[ "$OS" == "linux" ]] && command -v systemctl >/dev/null 2>&1; then
-  curl -fsSL "$API_URL/v1/agent/systemd.service" -o /etc/systemd/system/${SERVICE_NAME}.service
+  if ! curl -fsSL "$API_URL/v1/agent/systemd.service" -o /etc/systemd/system/${SERVICE_NAME}.service; then
+    curl -fsSL "$GITHUB_RAW/apps/agent/status-agent.service" -o /etc/systemd/system/${SERVICE_NAME}.service
+  fi
   systemctl daemon-reload
   systemctl enable --now ${SERVICE_NAME}
   systemctl --no-pager --full status ${SERVICE_NAME} || true
