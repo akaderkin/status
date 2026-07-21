@@ -3,10 +3,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api, getToken, setToken } from "./api";
 import { Dashboard } from "./pages/Dashboard";
 import { ServicesPage } from "./pages/Services";
-import { KumaPage } from "./pages/Kuma";
 import { ImapPage } from "./pages/Imap";
 import { NodesPage } from "./pages/Nodes";
 import { ChecksPage } from "./pages/Checks";
+import { CheckDetailPage } from "./pages/CheckDetail";
 import { MaintenancesPage } from "./pages/Maintenances";
 import { IncidentsPage } from "./pages/Incidents";
 import { TenantsPage } from "./pages/Tenants";
@@ -40,20 +40,22 @@ function Login() {
     <div className="login-wrap">
       <form className="login-box grid" onSubmit={onSubmit}>
         <div className="login-kicker">
-          <span className="brand-dot" /> Status Desk
+          <span className="brand-dot" /> NEXUS OPS
         </div>
-        <h1>Olfe & İncinet</h1>
-        <p className="muted" style={{ marginTop: -4 }}>Altyapı durumu, probe node’lar ve bakım operasyonu.</p>
+        <h1>STATUS GRID</h1>
+        <p className="muted" style={{ marginTop: -4 }}>
+          Multi-node probes · Olfe & İncinet · live telemetry
+        </p>
         <label>
-          Email
+          Access ID
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
         </label>
         <label>
-          Password
+          Auth Key
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
         </label>
         {error && <div className="error">{error}</div>}
-        <button disabled={loading}>{loading ? "Giriş yapılıyor…" : "Panele gir"}</button>
+        <button disabled={loading}>{loading ? "AUTH…" : "ENTER GRID"}</button>
       </form>
     </div>
   );
@@ -73,7 +75,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     () =>
       [
         {
-          title: "Overview",
+          title: "Command",
           items: [["/", "◈", "Dashboard"]] as const,
         },
         {
@@ -85,16 +87,13 @@ function Shell({ children }: { children: React.ReactNode }) {
         },
         {
           title: "Ingest",
-          items: [
-            ["/kuma", "◉", "Uptime Kuma"],
-            ["/imap", "✉", "IMAP / TT"],
-          ] as const,
+          items: [["/imap", "✉", "IMAP / TT"]] as const,
         },
         {
           title: "Probes",
           items: [
-            ["/nodes", "⬡", "Probe Nodes"],
-            ["/checks", "◎", "Checks"],
+            ["/nodes", "⬡", "Nodes"],
+            ["/checks", "◎", "Monitors"],
           ] as const,
         },
         {
@@ -108,15 +107,20 @@ function Shell({ children }: { children: React.ReactNode }) {
     []
   );
 
+  function navActive(to: string) {
+    if (to === "/") return loc.pathname === "/";
+    return loc.pathname === to || loc.pathname.startsWith(to + "/");
+  }
+
   return (
     <div className="layout">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
             <span className="brand-dot" />
-            Status Desk
+            NEXUS
           </div>
-          <div className="brand-sub">Olfe · İncinet ISS</div>
+          <div className="brand-sub">OLFE · INCINET // STATUS</div>
         </div>
 
         <nav className="nav">
@@ -124,7 +128,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <div key={g.title}>
               <div className="nav-group">{g.title}</div>
               {g.items.map(([to, ico, label]) => (
-                <Link key={to} to={to} className={loc.pathname === to ? "active" : ""}>
+                <Link key={to} to={to} className={navActive(to) ? "active" : ""}>
                   <span className="nav-ico">{ico}</span>
                   {label}
                 </Link>
@@ -136,17 +140,17 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="sidebar-foot">
           <div className="sidebar-meta">
             <strong>{now.toLocaleTimeString("tr-TR")}</strong>
-            Ops console · live
+            SYS.LIVE · GRID ONLINE
           </div>
           <button
             className="secondary"
-            style={{ width: "100%", background: "rgba(255,255,255,0.06)", color: "#e8eef7", borderColor: "rgba(255,255,255,0.12)" }}
+            style={{ width: "100%" }}
             onClick={() => {
               setToken(null);
               nav("/login");
             }}
           >
-            Çıkış yap
+            Disconnect
           </button>
         </div>
       </aside>
@@ -171,10 +175,10 @@ export default function App() {
       <Route path="/" element={<Private><Dashboard /></Private>} />
       <Route path="/tenants" element={<Private><TenantsPage /></Private>} />
       <Route path="/services" element={<Private><ServicesPage /></Private>} />
-      <Route path="/kuma" element={<Private><KumaPage /></Private>} />
       <Route path="/imap" element={<Private><ImapPage /></Private>} />
       <Route path="/nodes" element={<Private><NodesPage /></Private>} />
       <Route path="/checks" element={<Private><ChecksPage /></Private>} />
+      <Route path="/checks/:id" element={<Private><CheckDetailPage /></Private>} />
       <Route path="/maintenances" element={<Private><MaintenancesPage /></Private>} />
       <Route path="/incidents" element={<Private><IncidentsPage /></Private>} />
     </Routes>

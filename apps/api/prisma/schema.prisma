@@ -36,7 +36,6 @@ enum IncidentStatus {
 }
 
 enum IncidentSource {
-  kuma
   agent
   manual
   maintenance
@@ -51,7 +50,6 @@ enum MaintenanceStatus {
 }
 
 enum MonitorSourceType {
-  uptime_kuma
   agent
   manual
 }
@@ -65,13 +63,12 @@ model Tenant {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  services      Service[]
-  kumaInstances KumaInstance[]
-  imapAccounts  ImapAccount[]
-  probeNodes    ProbeNode[]
-  checks        Check[]
-  incidents     Incident[]
-  maintenances  Maintenance[]
+  services     Service[]
+  imapAccounts ImapAccount[]
+  probeNodes   ProbeNode[]
+  checks       Check[]
+  incidents    Incident[]
+  maintenances Maintenance[]
 
   @@map("tenants")
 }
@@ -88,82 +85,45 @@ model AdminUser {
 }
 
 model Service {
-  id          String              @id @default(uuid())
-  tenantId    String              @map("tenant_id")
+  id          String            @id @default(uuid())
+  tenantId    String            @map("tenant_id")
   name        String
   description String?
-  groupName   String?             @map("group_name")
-  sortOrder   Int                 @default(0) @map("sort_order")
-  sourceType  MonitorSourceType   @default(manual) @map("source_type")
-  status      ComponentStatus     @default(unknown)
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
+  groupName   String?           @map("group_name")
+  sortOrder   Int               @default(0) @map("sort_order")
+  sourceType  MonitorSourceType @default(manual) @map("source_type")
+  status      ComponentStatus   @default(unknown)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
 
-  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  kumaMappings  KumaMonitorMap[]
-  checks        Check[]
-  incidents     IncidentService[]
-  maintenances  MaintenanceService[]
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  checks       Check[]
+  incidents    IncidentService[]
+  maintenances MaintenanceService[]
 
   @@index([tenantId])
   @@map("services")
 }
 
-model KumaInstance {
-  id             String   @id @default(uuid())
-  tenantId       String   @map("tenant_id")
-  name           String
-  baseUrl        String   @map("base_url")
-  apiTokenEnc    String   @map("api_token_enc")
-  pollIntervalMs Int      @default(30000) @map("poll_interval_ms")
-  enabled        Boolean  @default(true)
-  lastPolledAt   DateTime? @map("last_polled_at")
-  lastError      String?  @map("last_error")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  mappings KumaMonitorMap[]
-
-  @@index([tenantId])
-  @@map("kuma_instances")
-}
-
-model KumaMonitorMap {
-  id              String   @id @default(uuid())
-  kumaInstanceId  String   @map("kuma_instance_id")
-  serviceId       String   @map("service_id")
-  kumaMonitorId   Int      @map("kuma_monitor_id")
-  kumaMonitorName String?  @map("kuma_monitor_name")
-  createdAt       DateTime @default(now()) @map("created_at")
-
-  kumaInstance KumaInstance @relation(fields: [kumaInstanceId], references: [id], onDelete: Cascade)
-  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@unique([kumaInstanceId, kumaMonitorId])
-  @@index([serviceId])
-  @@map("kuma_monitor_maps")
-}
-
 model ImapAccount {
-  id             String   @id @default(uuid())
-  tenantId       String?  @map("tenant_id")
+  id             String    @id @default(uuid())
+  tenantId       String?   @map("tenant_id")
   name           String
   host           String
-  port           Int      @default(993)
-  secure         Boolean  @default(true)
+  port           Int       @default(993)
+  secure         Boolean   @default(true)
   username       String
-  passwordEnc    String   @map("password_enc")
-  folder         String   @default("INBOX")
-  pollIntervalMs Int      @default(60000) @map("poll_interval_ms")
-  enabled        Boolean  @default(true)
-  fromFilter     String?  @map("from_filter")
-  subjectFilter  String?  @map("subject_filter")
+  passwordEnc    String    @map("password_enc")
+  folder         String    @default("INBOX")
+  pollIntervalMs Int       @default(60000) @map("poll_interval_ms")
+  enabled        Boolean   @default(true)
+  fromFilter     String?   @map("from_filter")
+  subjectFilter  String?   @map("subject_filter")
   lastPolledAt   DateTime? @map("last_polled_at")
-  lastUid        Int?     @map("last_uid")
-  lastError      String?  @map("last_error")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  lastUid        Int?      @map("last_uid")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   maintenances Maintenance[]
@@ -186,7 +146,7 @@ model ProbeNode {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  tenant  Tenant?      @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tenant  Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   checks  CheckNode[]
   results CheckResult[]
 
@@ -195,18 +155,24 @@ model ProbeNode {
 }
 
 model Check {
-  id             String    @id @default(uuid())
-  tenantId       String    @map("tenant_id")
-  serviceId      String    @map("service_id")
+  id             String             @id @default(uuid())
+  tenantId       String             @map("tenant_id")
+  serviceId      String             @map("service_id")
   name           String
-  type           CheckType @default(http)
+  type           CheckType          @default(http)
   target         String
-  intervalMs     Int       @default(60000) @map("interval_ms")
-  timeoutMs      Int       @default(10000) @map("timeout_ms")
-  expectedStatus Int?      @map("expected_status")
-  enabled        Boolean   @default(true)
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  intervalMs     Int                @default(60000) @map("interval_ms")
+  timeoutMs      Int                @default(10000) @map("timeout_ms")
+  expectedStatus Int?               @map("expected_status")
+  config         Json?
+  enabled        Boolean            @default(true)
+  lastStatus     CheckResultStatus? @map("last_status")
+  lastLatencyMs  Int?               @map("last_latency_ms")
+  lastCheckedAt  DateTime?          @map("last_checked_at")
+  lastMessage    String?            @map("last_message")
+  sslExpiresAt   DateTime?          @map("ssl_expires_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
 
   tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   service Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
@@ -248,16 +214,16 @@ model CheckResult {
 }
 
 model Incident {
-  id        String         @id @default(uuid())
-  tenantId  String         @map("tenant_id")
-  title     String
-  message   String?
-  status    IncidentStatus @default(investigating)
-  source    IncidentSource @default(manual)
-  startedAt DateTime       @default(now()) @map("started_at")
-  resolvedAt DateTime?     @map("resolved_at")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  id         String         @id @default(uuid())
+  tenantId   String         @map("tenant_id")
+  title      String
+  message    String?
+  status     IncidentStatus @default(investigating)
+  source     IncidentSource @default(manual)
+  startedAt  DateTime       @default(now()) @map("started_at")
+  resolvedAt DateTime?      @map("resolved_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
 
   tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   services IncidentService[]
@@ -278,21 +244,21 @@ model IncidentService {
 }
 
 model Maintenance {
-  id            String            @id @default(uuid())
-  tenantId      String            @map("tenant_id")
-  imapAccountId String?           @map("imap_account_id")
-  title         String
-  summary       String?
-  status        MaintenanceStatus @default(pending)
-  startsAt      DateTime          @map("starts_at")
-  endsAt        DateTime          @map("ends_at")
-  emailMessageId String?          @map("email_message_id")
-  emailSubject  String?           @map("email_subject")
-  emailFrom     String?           @map("email_from")
-  emailRawHash  String?           @map("email_raw_hash")
-  emailBody     String?           @map("email_body")
-  createdAt     DateTime          @default(now()) @map("created_at")
-  updatedAt     DateTime          @updatedAt @map("updated_at")
+  id             String            @id @default(uuid())
+  tenantId       String            @map("tenant_id")
+  imapAccountId  String?           @map("imap_account_id")
+  title          String
+  summary        String?
+  status         MaintenanceStatus @default(pending)
+  startsAt       DateTime          @map("starts_at")
+  endsAt         DateTime          @map("ends_at")
+  emailMessageId String?           @map("email_message_id")
+  emailSubject   String?           @map("email_subject")
+  emailFrom      String?           @map("email_from")
+  emailRawHash   String?           @map("email_raw_hash")
+  emailBody      String?           @map("email_body")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   imapAccount ImapAccount?         @relation(fields: [imapAccountId], references: [id], onDelete: SetNull)

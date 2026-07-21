@@ -230,7 +230,7 @@ export async function activateMaintenances() {
       data: { status: "completed" },
     });
     for (const link of m.services) {
-      // leave status; next kuma/agent poll will refresh
+      // leave status; next agent poll will refresh
       const svc = await prisma.service.findUnique({ where: { id: link.serviceId } });
       if (svc?.status === "maintenance") {
         await prisma.service.update({

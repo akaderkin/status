@@ -69,7 +69,7 @@ export async function agentRoutes(app: FastifyInstance) {
       };
     });
     return {
-      version: "1.1.0",
+      version: "1.2.0",
       installScript: "/v1/agent/install.sh",
       systemdUnit: "/v1/agent/systemd.service",
       binaries,
@@ -104,6 +104,7 @@ export async function agentRoutes(app: FastifyInstance) {
             intervalMs: true,
             timeoutMs: true,
             expectedStatus: true,
+            config: true,
           },
         },
       },
@@ -134,6 +135,19 @@ export async function agentRoutes(app: FastifyInstance) {
           latencyMs: r.latencyMs ?? null,
           message: r.message,
           checkedAt: r.checkedAt ? new Date(r.checkedAt) : new Date(),
+        },
+      });
+
+      await prisma.check.update({
+        where: { id: r.checkId },
+        data: {
+          lastStatus: r.status,
+          lastLatencyMs: r.latencyMs ?? null,
+          lastCheckedAt: r.checkedAt ? new Date(r.checkedAt) : new Date(),
+          lastMessage: r.message ?? null,
+          ...(r.sslExpiresAt !== undefined
+            ? { sslExpiresAt: r.sslExpiresAt ? new Date(r.sslExpiresAt) : null }
+            : {}),
         },
       });
 

@@ -167,7 +167,7 @@ export async function openOrUpdateIncident(opts: {
   serviceId: string;
   title: string;
   message?: string;
-  source: "kuma" | "agent" | "manual" | "maintenance";
+  source: "agent" | "manual" | "maintenance";
 }) {
   const open = await prisma.incident.findFirst({
     where: {
@@ -196,7 +196,7 @@ export async function openOrUpdateIncident(opts: {
 
 export async function resolveIncidentsForService(
   serviceId: string,
-  source: "kuma" | "agent"
+  source: "agent"
 ) {
   const open = await prisma.incident.findMany({
     where: {

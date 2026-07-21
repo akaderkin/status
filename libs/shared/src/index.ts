@@ -28,14 +28,29 @@ export type CheckResultStatus = z.infer<typeof CheckResultStatus>;
 export const IncidentStatus = z.enum(["investigating", "identified", "monitoring", "resolved"]);
 export type IncidentStatus = z.infer<typeof IncidentStatus>;
 
-export const IncidentSource = z.enum(["kuma", "agent", "manual", "maintenance"]);
+export const IncidentSource = z.enum(["agent", "manual", "maintenance"]);
 export type IncidentSource = z.infer<typeof IncidentSource>;
 
 export const MaintenanceStatus = z.enum(["pending", "approved", "active", "completed", "cancelled"]);
 export type MaintenanceStatus = z.infer<typeof MaintenanceStatus>;
 
-export const MonitorSourceType = z.enum(["uptime_kuma", "agent", "manual"]);
+export const MonitorSourceType = z.enum(["agent", "manual"]);
 export type MonitorSourceType = z.infer<typeof MonitorSourceType>;
+
+export const CheckConfigSchema = z
+  .object({
+    method: z.string().max(16).optional(),
+    headers: z.record(z.string()).optional(),
+    body: z.string().max(100_000).optional(),
+    keyword: z.string().max(512).optional(),
+    keywordInvert: z.boolean().optional(),
+    acceptedStatusCodes: z.array(z.number().int()).max(32).optional(),
+    ignoreTls: z.boolean().optional(),
+    maxRedirects: z.number().int().min(0).max(20).optional(),
+    retries: z.number().int().min(0).max(5).optional(),
+  })
+  .passthrough();
+export type CheckConfig = z.infer<typeof CheckConfigSchema>;
 
 export const AgentHeartbeatSchema = z.object({
   hostname: z.string().optional(),
@@ -50,6 +65,7 @@ export const AgentResultSchema = z.object({
   latencyMs: z.number().int().nonnegative().nullable().optional(),
   message: z.string().max(2000).optional(),
   checkedAt: z.string().optional(),
+  sslExpiresAt: z.string().datetime().nullable().optional(),
 });
 export type AgentResult = z.infer<typeof AgentResultSchema>;
 
@@ -77,22 +93,6 @@ export const CreateServiceSchema = z.object({
   groupName: z.string().max(128).optional(),
   sortOrder: z.number().int().optional(),
   sourceType: MonitorSourceType.optional(),
-});
-
-export const CreateKumaInstanceSchema = z.object({
-  tenantId: z.string().uuid(),
-  name: z.string().min(1).max(128),
-  baseUrl: z.string().url(),
-  apiToken: z.string().min(1),
-  pollIntervalMs: z.number().int().min(5000).optional(),
-  enabled: z.boolean().optional(),
-});
-
-export const CreateKumaMappingSchema = z.object({
-  kumaInstanceId: z.string().uuid(),
-  serviceId: z.string().uuid(),
-  kumaMonitorId: z.number().int(),
-  kumaMonitorName: z.string().max(256).optional(),
 });
 
 export const CreateImapAccountSchema = z.object({
@@ -126,6 +126,7 @@ export const CreateCheckSchema = z.object({
   intervalMs: z.number().int().min(5000).optional(),
   timeoutMs: z.number().int().min(1000).optional(),
   expectedStatus: z.number().int().optional(),
+  config: CheckConfigSchema.optional(),
   enabled: z.boolean().optional(),
   nodeIds: z.array(z.string().uuid()).optional(),
 });
@@ -164,16 +165,6 @@ export function aggregateOverallStatus(statuses: ComponentStatus[]): OverallStat
   if (statuses.includes("degraded")) return "degraded";
   if (statuses.includes("maintenance")) return "maintenance";
   return "operational";
-}
-
-export function kumaStatusToComponent(status: number | string): ComponentStatus {
-  // Uptime Kuma: 0=DOWN, 1=UP, 2=PENDING, 3=MAINTENANCE
-  const n = typeof status === "string" ? Number(status) : status;
-  if (n === 1) return "operational";
-  if (n === 0) return "major_outage";
-  if (n === 3) return "maintenance";
-  if (n === 2) return "degraded";
-  return "unknown";
 }
 
 export function checkResultsToComponent(

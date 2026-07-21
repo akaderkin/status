@@ -94,7 +94,6 @@ export function ServicesPage() {
             <label>Source
               <select value={form.sourceType} onChange={(e) => setForm({ ...form, sourceType: e.target.value })}>
                 <option value="manual">manual</option>
-                <option value="uptime_kuma">uptime_kuma</option>
                 <option value="agent">agent</option>
               </select>
             </label>

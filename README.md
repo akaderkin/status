@@ -1,12 +1,12 @@
 # Status Backend — Olfe & İncinet ISS
 
-Tek merkezi multi-tenant status backend. Uptime Kuma, IMAP (Türk Telekom bakım mailleri) ve deploy edilebilir probe agent’larından veri toplar; public status API ve admin paneli sunar.
+Tek merkezi multi-tenant status backend. Native probe agent’lar (HTTP/TCP/ICMP), IMAP (Türk Telekom bakım mailleri) ve public status API + premium admin paneli.
 
 ## Stack
 
 - **API:** Node.js + TypeScript + Fastify + Prisma + PostgreSQL
-- **Worker:** Kuma poll + IMAP poll (timer)
-- **Admin:** Vite + React
+- **Worker:** IMAP poll (timer)
+- **Admin:** Vite + React (cyberpunk HUD)
 - **Agent:** Go (tek binary, systemd / Docker, uzaktan install)
 
 ## Hızlı başlangıç
@@ -45,8 +45,8 @@ curl -fsSL "$API_URL/v1/agent/install.sh" | sudo bash -s -- \
 
 Script binary indirir, `/etc/status-agent/agent.env` yazar, systemd `status-agent` enable eder.
 
-3. Admin → **Checks** → hedef URL/host + hangi node’larda çalışacağı
-4. Dashboard’da node **online** olmalı
+3. Admin → **Monitors** → HTTP / TCP / ICMP check + hangi node’larda çalışacağı
+4. Dashboard’da monitor kartları ve node **online** görünmeli
 
 Release binary üretimi:
 
@@ -72,10 +72,11 @@ Endpoints:
 
 Seed tenant’lar: `olfe`, `incinet`.
 
-## Uptime Kuma
+## Native probes
 
-Admin → **Uptime Kuma** → instance + monitor→service mapping.  
-Token: API key veya `page:status-slug`. Test butonu var.
+- **HTTP:** method, headers, body, keyword, SSL expiry, expected status
+- **TCP:** host:port dial
+- **ICMP:** ping (exec `ping` fallback)
 
 ## IMAP / Türk Telekom
 
@@ -83,12 +84,11 @@ Admin → **IMAP / TT** → hesap + filtre. Worker mailleri `pending` maintenanc
 
 ## Admin paneli
 
-- Dashboard (auto-refresh)
-- Tenants / Services (edit/delete)
-- Uptime Kuma (test, mapping sil)
+- Dashboard (monitor grid, latency heartbeats, auto-refresh)
+- Tenants / Services
 - IMAP (test, edit)
 - Probe Nodes (install one-liner, rotate, enable)
-- Checks (interval, results geçmişi)
+- Monitors (HTTP/TCP/ICMP, detail charts, results)
 - Maintenances (manuel + TT onay)
 - Incidents (status progression)
 
@@ -98,13 +98,6 @@ Admin → **IMAP / TT** → hesap + filtre. Worker mailleri `pending` maintenanc
 - `JWT_SECRET`, `ENCRYPTION_KEY`
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 - `PUBLIC_API_URL` (opsiyonel; install komutları için)
-
-## Repo
-
-```
-apps/api       # Fastify + Prisma + agent binary serve
-apps/worker    # Kuma + IMAP
-apps/admin     # React admin
-apps/agent     # Go probe + install.sh + systemd
-libs/shared
-```
+- `STATUS_API_URL`
+- `IMAP_POLL_INTERVAL_MS`, `AGENT_STALE_MS`
+- `CORS_ORIGIN`

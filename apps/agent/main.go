@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -26,14 +28,27 @@ type Config struct {
 	Interval time.Duration
 }
 
+type CheckConfig struct {
+	Method              string            `json:"method"`
+	Headers             map[string]string `json:"headers"`
+	Body                string            `json:"body"`
+	Keyword             string            `json:"keyword"`
+	KeywordInvert       bool              `json:"keywordInvert"`
+	AcceptedStatusCodes []int             `json:"acceptedStatusCodes"`
+	IgnoreTLS           bool              `json:"ignoreTls"`
+	MaxRedirects        *int              `json:"maxRedirects"`
+	Retries             *int              `json:"retries"`
+}
+
 type Check struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Type           string `json:"type"`
-	Target         string `json:"target"`
-	IntervalMs     int    `json:"intervalMs"`
-	TimeoutMs      int    `json:"timeoutMs"`
-	ExpectedStatus *int   `json:"expectedStatus"`
+	ID             string       `json:"id"`
+	Name           string       `json:"name"`
+	Type           string       `json:"type"`
+	Target         string       `json:"target"`
+	IntervalMs     int          `json:"intervalMs"`
+	TimeoutMs      int          `json:"timeoutMs"`
+	ExpectedStatus *int         `json:"expectedStatus"`
+	Config         *CheckConfig `json:"config"`
 }
 
 type ChecksResponse struct {
@@ -42,11 +57,12 @@ type ChecksResponse struct {
 }
 
 type Result struct {
-	CheckID   string `json:"checkId"`
-	Status    string `json:"status"`
-	LatencyMs *int   `json:"latencyMs,omitempty"`
-	Message   string `json:"message,omitempty"`
-	CheckedAt string `json:"checkedAt"`
+	CheckID      string  `json:"checkId"`
+	Status       string  `json:"status"`
+	LatencyMs    *int    `json:"latencyMs,omitempty"`
+	Message      string  `json:"message,omitempty"`
+	CheckedAt    string  `json:"checkedAt"`
+	SSLExpiresAt *string `json:"sslExpiresAt,omitempty"`
 }
 
 func env(key, fallback string) string {
@@ -63,7 +79,7 @@ func loadConfig() Config {
 		APIURL:   strings.TrimRight(env("STATUS_API_URL", "http://localhost:3000"), "/"),
 		Token:    env("NODE_TOKEN", ""),
 		Hostname: env("AGENT_HOSTNAME", host),
-		Version:  "1.1.0",
+		Version:  "1.2.0",
 		Interval: time.Duration(intervalMs) * time.Millisecond,
 	}
 }
@@ -223,66 +239,158 @@ func probe(check Check) Result {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
+	retries := 0
+	if check.Config != nil && check.Config.Retries != nil {
+		retries = *check.Config.Retries
+	}
+
 	start := time.Now()
 	checkedAt := start.UTC().Format(time.RFC3339)
 
 	var status, message string
-	switch strings.ToLower(check.Type) {
-	case "tcp":
-		status, message = probeTCP(check.Target, timeout)
-	case "icmp":
-		status, message = "degraded", "icmp requires privileges; use tcp/http"
-	default:
-		status, message = probeHTTP(check, timeout)
+	var sslExpires *string
+
+	for attempt := 0; attempt <= retries; attempt++ {
+		switch strings.ToLower(check.Type) {
+		case "tcp":
+			status, message = probeTCP(check.Target, timeout)
+		case "icmp":
+			status, message = probeICMP(check.Target, timeout)
+		default:
+			status, message, sslExpires = probeHTTP(check, timeout)
+		}
+		if status == "up" || attempt == retries {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	latency := int(time.Since(start).Milliseconds())
 	return Result{
-		CheckID:   check.ID,
-		Status:    status,
-		LatencyMs: &latency,
-		Message:   message,
-		CheckedAt: checkedAt,
+		CheckID:      check.ID,
+		Status:       status,
+		LatencyMs:    &latency,
+		Message:      message,
+		CheckedAt:    checkedAt,
+		SSLExpiresAt: sslExpires,
 	}
 }
 
-func probeHTTP(check Check, timeout time.Duration) (string, string) {
+func probeHTTP(check Check, timeout time.Duration) (string, string, *string) {
+	cfg := check.Config
+	method := http.MethodGet
+	maxRedirects := 5
+	ignoreTLS := false
+	var bodyReader io.Reader
+	headers := map[string]string{}
+
+	if cfg != nil {
+		if cfg.Method != "" {
+			method = strings.ToUpper(cfg.Method)
+		}
+		if cfg.MaxRedirects != nil {
+			maxRedirects = *cfg.MaxRedirects
+		}
+		ignoreTLS = cfg.IgnoreTLS
+		if cfg.Body != "" {
+			bodyReader = strings.NewReader(cfg.Body)
+		}
+		headers = cfg.Headers
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ignoreTLS}
+
 	client := &http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 {
+			if len(via) >= maxRedirects {
 				return fmt.Errorf("too many redirects")
 			}
 			return nil
 		},
 	}
-	req, err := http.NewRequest(http.MethodGet, check.Target, nil)
+
+	req, err := http.NewRequest(method, check.Target, bodyReader)
 	if err != nil {
-		return "down", err.Error()
+		return "down", err.Error(), nil
 	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "status-agent/1.2.0")
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
-		return "down", err.Error()
+		return "down", err.Error(), nil
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
+	bodyStr := string(bodyBytes)
+
+	var sslExpires *string
+	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
+		exp := resp.TLS.PeerCertificates[0].NotAfter.UTC().Format(time.RFC3339)
+		sslExpires = &exp
+		if time.Until(resp.TLS.PeerCertificates[0].NotAfter) < 14*24*time.Hour {
+			// near expiry → may degrade after keyword/status checks
+		}
+	}
+
+	accepted := map[int]bool{}
 	if check.ExpectedStatus != nil {
-		if resp.StatusCode == *check.ExpectedStatus {
-			return "up", fmt.Sprintf("HTTP %d", resp.StatusCode)
+		accepted[*check.ExpectedStatus] = true
+	}
+	if cfg != nil {
+		for _, code := range cfg.AcceptedStatusCodes {
+			accepted[code] = true
 		}
+	}
+
+	statusOK := false
+	msg := fmt.Sprintf("HTTP %d", resp.StatusCode)
+	if len(accepted) > 0 {
+		statusOK = accepted[resp.StatusCode]
+		if !statusOK {
+			msg = fmt.Sprintf("HTTP %d (unexpected)", resp.StatusCode)
+		}
+	} else {
+		statusOK = resp.StatusCode >= 200 && resp.StatusCode < 400
+	}
+
+	if cfg != nil && cfg.Keyword != "" {
+		found := strings.Contains(bodyStr, cfg.Keyword)
+		if cfg.KeywordInvert {
+			found = !found
+		}
+		if !found {
+			if resp.StatusCode >= 500 {
+				return "down", msg + "; keyword mismatch", sslExpires
+			}
+			return "down", msg + "; keyword mismatch", sslExpires
+		}
+	}
+
+	if !statusOK {
 		if resp.StatusCode >= 500 {
-			return "down", fmt.Sprintf("HTTP %d", resp.StatusCode)
+			return "down", msg, sslExpires
 		}
-		return "degraded", fmt.Sprintf("HTTP %d (expected %d)", resp.StatusCode, *check.ExpectedStatus)
+		return "degraded", msg, sslExpires
 	}
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-		return "up", fmt.Sprintf("HTTP %d", resp.StatusCode)
+
+	if sslExpires != nil {
+		if t, err := time.Parse(time.RFC3339, *sslExpires); err == nil {
+			if time.Until(t) < 14*24*time.Hour {
+				return "degraded", msg + "; SSL expires soon", sslExpires
+			}
+		}
 	}
-	if resp.StatusCode >= 500 {
-		return "down", fmt.Sprintf("HTTP %d", resp.StatusCode)
-	}
-	return "degraded", fmt.Sprintf("HTTP %d", resp.StatusCode)
+
+	return "up", msg, sslExpires
 }
 
 func probeTCP(target string, timeout time.Duration) (string, string) {
@@ -293,4 +401,54 @@ func probeTCP(target string, timeout time.Duration) (string, string) {
 	}
 	_ = conn.Close()
 	return "up", "tcp ok"
+}
+
+func probeICMP(target string, timeout time.Duration) (string, string) {
+	host := target
+	if h, _, err := net.SplitHostPort(target); err == nil {
+		host = h
+	}
+	// Strip URL schemes accidentally pasted
+	host = strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")
+	host = strings.Split(host, "/")[0]
+
+	secs := int(timeout.Seconds())
+	if secs < 1 {
+		secs = 1
+	}
+	if secs > 30 {
+		secs = 30
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+time.Second)
+	defer cancel()
+
+	// Prefer system ping (works without CAP_NET_RAW on many VPS)
+	cmd := exec.CommandContext(ctx, "ping", "-c", "1", "-W", strconv.Itoa(secs), host)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// macOS uses -W in milliseconds sometimes; try without -W
+		cmd2 := exec.CommandContext(ctx, "ping", "-c", "1", host)
+		out2, err2 := cmd2.CombinedOutput()
+		if err2 != nil {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				msg = err.Error()
+			}
+			return "down", msg
+		}
+		out = out2
+	}
+	line := strings.TrimSpace(string(out))
+	if len(line) > 200 {
+		line = line[:200]
+	}
+	return "up", "icmp ok: " + firstLine(line)
+}
+
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return s
 }
