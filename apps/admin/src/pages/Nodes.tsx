@@ -8,9 +8,10 @@ type Node = {
   token?: string;
 };
 
-const defaultApiUrl = typeof window !== "undefined"
-  ? `${window.location.protocol}//${window.location.hostname}:3000`
-  : "http://localhost:3000";
+const defaultApiUrl =
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
+  (import.meta.env.VITE_PUBLIC_API_URL as string | undefined)?.replace(/\/$/, "") ||
+  "https://status-api.olfe.tr";
 
 export function NodesPage() {
   const [rows, setRows] = useState<Node[]>([]);

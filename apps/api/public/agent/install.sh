@@ -75,9 +75,12 @@ if [[ "$OS" == "linux" ]] && command -v systemctl >/dev/null 2>&1; then
     curl -fsSL "$GITHUB_RAW/apps/agent/status-agent.service" -o /etc/systemd/system/${SERVICE_NAME}.service
   fi
   systemctl daemon-reload
-  systemctl enable --now ${SERVICE_NAME}
+  systemctl enable ${SERVICE_NAME}
+  systemctl restart ${SERVICE_NAME}
+  sleep 1
   systemctl --no-pager --full status ${SERVICE_NAME} || true
-  echo "Installed and started ${SERVICE_NAME}"
+  echo "Installed and restarted ${SERVICE_NAME}"
+  echo "Token file: $ENV_DIR/agent.env"
 else
   echo "Binary installed to $INSTALL_DIR/status-agent"
   echo "Run: STATUS_API_URL=$API_URL NODE_TOKEN=*** $INSTALL_DIR/status-agent"

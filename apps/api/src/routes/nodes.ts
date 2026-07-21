@@ -74,7 +74,12 @@ export async function nodeRoutes(app: FastifyInstance) {
     const node = await prisma.probeNode.findUnique({ where: { id } });
     if (!node) return reply.code(404).send({ error: "Not found" });
 
-    const apiUrl = (body.apiUrl || process.env.PUBLIC_API_URL || `http://localhost:${process.env.API_PORT || 3000}`).replace(/\/$/, "");
+    const apiUrl = (
+      body.apiUrl ||
+      process.env.PUBLIC_API_URL ||
+      process.env.STATUS_API_URL ||
+      "https://status-api.olfe.tr"
+    ).replace(/\/$/, "");
     const token = body.token;
     if (!token) {
       return reply.code(400).send({
