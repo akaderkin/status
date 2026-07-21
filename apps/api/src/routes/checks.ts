@@ -180,10 +180,14 @@ export async function checkRoutes(app: FastifyInstance) {
     });
   });
 
-  app.delete("/admin/checks/:id", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete("/admin/checks/:id", { preHandler: requireAdmin }, async (request) => {
     const { id } = request.params as { id: string };
-    await prisma.check.delete({ where: { id } });
-    return reply.code(204).send();
+    await prisma.$transaction([
+      prisma.checkResult.deleteMany({ where: { checkId: id } }),
+      prisma.checkNode.deleteMany({ where: { checkId: id } }),
+      prisma.check.delete({ where: { id } }),
+    ]);
+    return { ok: true };
   });
 
   app.get("/admin/checks/:id/results", { preHandler: requireAdmin }, async (request) => {

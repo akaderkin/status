@@ -21,6 +21,9 @@ const app = Fastify({ logger: true });
 
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN === "*" ? true : process.env.CORS_ORIGIN?.split(",") ?? true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Content-Disposition"],
 });
 
 await app.register(jwt, {
@@ -54,10 +57,21 @@ app.setErrorHandler((err, _req, reply) => {
   if (err instanceof ZodError) {
     return reply.code(400).send({ error: "Validation error", details: err.flatten() });
   }
+  const prismaErr = err as { code?: string; meta?: { cause?: string }; message?: string; statusCode?: number };
+  if (prismaErr.code === "P2025") {
+    return reply.code(404).send({ error: "Kayıt bulunamadı" });
+  }
+  if (prismaErr.code === "P2003") {
+    return reply.code(409).send({
+      error: "Bağlı kayıtlar var; önce ilişkili monitor / incident / bakımları sil",
+    });
+  }
+  if (prismaErr.code === "P2002") {
+    return reply.code(409).send({ error: "Bu kayıt zaten var (unique)" });
+  }
   app.log.error(err);
-  const e = err as { statusCode?: number; message?: string };
-  const status = e.statusCode ?? 500;
-  return reply.code(status).send({ error: e.message || "Internal error" });
+  const status = prismaErr.statusCode ?? 500;
+  return reply.code(status).send({ error: prismaErr.message || "Internal error" });
 });
 
 app.get("/health", async () => ({ ok: true }));

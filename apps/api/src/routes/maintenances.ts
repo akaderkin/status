@@ -91,13 +91,13 @@ export async function maintenanceRoutes(app: FastifyInstance) {
     return updated;
   });
 
-  app.delete("/admin/maintenances/:id", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete("/admin/maintenances/:id", { preHandler: requireAdmin }, async (request) => {
     const { id } = request.params as { id: string };
     const links = await prisma.maintenanceService.findMany({ where: { maintenanceId: id } });
     await prisma.maintenance.delete({ where: { id } });
     for (const link of links) {
       await recomputeServiceStatus(link.serviceId);
     }
-    return reply.code(204).send();
+    return { ok: true };
   });
 }

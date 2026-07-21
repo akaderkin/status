@@ -48,7 +48,6 @@ type Dash = {
 export function Dashboard() {
   const [data, setData] = useState<Dash | null>(null);
   const [error, setError] = useState("");
-  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -64,10 +63,7 @@ export function Dashboard() {
       }
     }
     load();
-    const t = setInterval(() => {
-      setTick((x) => x + 1);
-      load();
-    }, 10000);
+    const t = setInterval(load, 10000);
     return () => {
       alive = false;
       clearInterval(t);
@@ -75,17 +71,17 @@ export function Dashboard() {
   }, []);
 
   if (!data && !error) {
-    return <div className="empty">SYNCING TELEMETRY…</div>;
+    return <div className="empty">Yükleniyor…</div>;
   }
 
   return (
     <>
       <div className="header">
         <div>
-          <h1>Command Deck</h1>
-          <div className="sub">Live monitor grid · refresh #{tick}</div>
+          <h1>Dashboard</h1>
+          <div className="sub">Monitor özeti · otomatik yenileme</div>
         </div>
-        <span className="live-pill"><i /> LIVE</span>
+        <span className="live-pill"><i /> Canlı</span>
       </div>
       {error && <div className="error">{error}</div>}
       {data && (
@@ -101,7 +97,7 @@ export function Dashboard() {
 
           <div className="panel">
             <h2>Monitors</h2>
-            {!data.monitors.length && <div className="empty">No monitors yet — create one under Monitors.</div>}
+            {!data.monitors.length && <div className="empty">Henüz monitor yok — Monitors sayfasından ekle.</div>}
             <div className="monitor-grid">
               {data.monitors.map((m) => (
                 <Link
@@ -127,7 +123,10 @@ export function Dashboard() {
                     </span>
                   </div>
                   <div className="heartbeat" title="Recent heartbeats">
-                    {(m.heartbeats.length ? m.heartbeats : Array.from({ length: 24 }).map(() => ({ status: "" }))).slice(-32).map((h, i) => (
+                    {(m.heartbeats.length
+                      ? m.heartbeats
+                      : Array.from({ length: 24 }).map(() => ({ status: "", latencyMs: null as number | null, checkedAt: "" }))
+                    ).slice(-32).map((h, i) => (
                       <span
                         key={i}
                         className={h.status}
@@ -157,7 +156,7 @@ export function Dashboard() {
                       <td><span className={`badge ${f.status}`}>{f.status}</span></td>
                     </tr>
                   ))}
-                  {!data.recentFailures.length && <tr><td colSpan={4} className="empty">Clean — no failures in 24h</td></tr>}
+                  {!data.recentFailures.length && <tr><td colSpan={4} className="empty">Son 24 saatte sorun yok</td></tr>}
                 </tbody>
               </table>
             </div>

@@ -41,7 +41,7 @@ function LatencyChart({ points }: { points: Array<{ t: string; avgLatencyMs: num
   const h = 160;
   const pad = 16;
   if (data.length < 2) {
-    return <div className="empty">Not enough samples for chart</div>;
+    return <div className="empty">Grafik için yeterli veri yok</div>;
   }
   const maxY = Math.max(...data.map((d) => d.avgLatencyMs), 1);
   const coords = data.map((d, i) => {
@@ -57,8 +57,8 @@ function LatencyChart({ points }: { points: Array<{ t: string; avgLatencyMs: num
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="latGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#00e5ff" />
-            <stop offset="100%" stopColor="#00e5ff" stopOpacity="0" />
+            <stop offset="0%" stopColor="#0d9488" />
+            <stop offset="100%" stopColor="#0d9488" stopOpacity="0" />
           </linearGradient>
         </defs>
         <line className="chart-axis" x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} />
@@ -111,7 +111,7 @@ export function CheckDetailPage() {
     return `${days}d · ${new Date(detail.sslExpiresAt).toLocaleDateString()}`;
   }, [detail]);
 
-  if (!detail && !error) return <div className="empty">LOADING MONITOR…</div>;
+  if (!detail && !error) return <div className="empty">Yükleniyor…</div>;
 
   return (
     <>
@@ -135,7 +135,7 @@ export function CheckDetailPage() {
           </div>
 
           <div className="panel">
-            <h2>Latency · 6h</h2>
+            <h2>Latency (son 6 saat)</h2>
             <LatencyChart points={series?.series || []} />
             <div className="heartbeat" style={{ height: 36 }}>
               {detail.sparkline.slice(-48).map((h, i) => (
@@ -150,7 +150,7 @@ export function CheckDetailPage() {
           </div>
 
           <div className="panel">
-            <h2>Target</h2>
+            <h2>Hedef</h2>
             <div className="mono">{detail.target}</div>
             <div className="muted" style={{ marginTop: 8 }}>
               {detail.type.toUpperCase()} · timeout {detail.timeoutMs}ms · {detail.enabled ? "enabled" : "paused"}

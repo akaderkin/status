@@ -38,9 +38,18 @@ export async function serviceRoutes(app: FastifyInstance) {
     return service;
   });
 
-  app.delete("/admin/services/:id", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete("/admin/services/:id", { preHandler: requireAdmin }, async (request) => {
     const { id } = request.params as { id: string };
-    await prisma.service.delete({ where: { id } });
-    return reply.code(204).send();
+    const checks = await prisma.check.findMany({ where: { serviceId: id }, select: { id: true } });
+    const checkIds = checks.map((c) => c.id);
+    await prisma.$transaction([
+      prisma.checkResult.deleteMany({ where: { checkId: { in: checkIds } } }),
+      prisma.checkNode.deleteMany({ where: { checkId: { in: checkIds } } }),
+      prisma.check.deleteMany({ where: { serviceId: id } }),
+      prisma.incidentService.deleteMany({ where: { serviceId: id } }),
+      prisma.maintenanceService.deleteMany({ where: { serviceId: id } }),
+      prisma.service.delete({ where: { id } }),
+    ]);
+    return { ok: true };
   });
 }

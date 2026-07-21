@@ -63,10 +63,10 @@ export async function imapRoutes(app: FastifyInstance) {
     return { ...row, passwordEnc: undefined, hasPassword: true };
   });
 
-  app.delete("/admin/imap/:id", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete("/admin/imap/:id", { preHandler: requireAdmin }, async (request) => {
     const { id } = request.params as { id: string };
     await prisma.imapAccount.delete({ where: { id } });
-    return reply.code(204).send();
+    return { ok: true };
   });
 
   app.post("/admin/imap/:id/test", { preHandler: requireAdmin }, async (request, reply) => {

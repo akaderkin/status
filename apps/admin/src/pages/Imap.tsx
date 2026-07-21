@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "../api";
+import { api, apiDelete } from "../api";
 
 type Tenant = { id: string; name: string };
 type Imap = {
@@ -127,8 +127,13 @@ export function ImapPage() {
                     });
                   }}>Edit</button>
                   <button className="danger" type="button" onClick={async () => {
-                    await api(`/admin/imap/${r.id}`, { method: "DELETE" });
-                    await load();
+                    try {
+                      await apiDelete(`/admin/imap/${r.id}`, r.name);
+                      await load();
+                    } catch (err) {
+                      if (err instanceof Error && err.message === "CANCELLED") return;
+                      setError(err instanceof Error ? err.message : "Silinemedi");
+                    }
                   }}>Delete</button>
                 </td>
               </tr>

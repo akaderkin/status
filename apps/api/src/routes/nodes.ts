@@ -58,10 +58,14 @@ export async function nodeRoutes(app: FastifyInstance) {
     return { ...node, tokenHash: undefined };
   });
 
-  app.delete("/admin/nodes/:id", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete("/admin/nodes/:id", { preHandler: requireAdmin }, async (request) => {
     const { id } = request.params as { id: string };
-    await prisma.probeNode.delete({ where: { id } });
-    return reply.code(204).send();
+    await prisma.$transaction([
+      prisma.checkResult.deleteMany({ where: { nodeId: id } }),
+      prisma.checkNode.deleteMany({ where: { nodeId: id } }),
+      prisma.probeNode.delete({ where: { id } }),
+    ]);
+    return { ok: true };
   });
 
   app.post("/admin/nodes/:id/install-command", { preHandler: requireAdmin }, async (request, reply) => {

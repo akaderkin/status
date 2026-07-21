@@ -20,9 +20,9 @@ export async function tenantRoutes(app: FastifyInstance) {
     return prisma.tenant.update({ where: { id }, data: body });
   });
 
-  app.delete("/admin/tenants/:id", { preHandler: requireAdmin }, async (request, reply) => {
+  app.delete("/admin/tenants/:id", { preHandler: requireAdmin }, async (request) => {
     const { id } = request.params as { id: string };
     await prisma.tenant.delete({ where: { id } });
-    return reply.code(204).send();
+    return { ok: true };
   });
 }

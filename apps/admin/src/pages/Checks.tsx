@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, apiDelete } from "../api";
 
 type Tenant = { id: string; name: string };
 type Service = { id: string; name: string; tenantId: string };
@@ -66,7 +66,15 @@ export function ChecksPage() {
     setServices(s);
     setNodes(n);
     setRows(c);
-    if (!form.tenantId && t[0]) setForm((f) => ({ ...f, tenantId: t[0].id }));
+    setForm((f) => {
+      const tenantId = f.tenantId || t[0]?.id || "";
+      const svc = s.find((x) => x.tenantId === tenantId);
+      return {
+        ...f,
+        tenantId,
+        serviceId: f.serviceId || svc?.id || "",
+      };
+    });
   }
 
   useEffect(() => {
@@ -169,19 +177,26 @@ export function ChecksPage() {
       <div className="header">
         <div>
           <h1>Monitors</h1>
-          <div className="sub">HTTP · TCP · ICMP probe definitions</div>
+          <div className="sub">HTTP, TCP ve ICMP kontrolleri</div>
         </div>
       </div>
       {error && <div className="error">{error}</div>}
 
       <div className="panel">
-        <h2>{editId ? "Edit monitor" : "Deploy monitor"}</h2>
+        <h2>{editId ? "Monitor düzenle" : "Yeni monitor"}</h2>
         <form className="grid" onSubmit={onSubmit}>
           <div className="row">
             {!editId && (
               <label>
                 Tenant
-                <select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value, serviceId: "" })}>
+                <select
+                  value={form.tenantId}
+                  onChange={(e) => {
+                    const tenantId = e.target.value;
+                    const svc = services.find((x) => x.tenantId === tenantId);
+                    setForm({ ...form, tenantId, serviceId: svc?.id || "" });
+                  }}
+                >
                   {tenants.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
@@ -289,8 +304,8 @@ export function ChecksPage() {
           )}
 
           <div>
-            <div className="muted" style={{ marginBottom: 6, fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: "0.08em" }}>
-              RUN ON NODES
+            <div className="muted" style={{ marginBottom: 6, fontFamily: "var(--mono)", fontSize: 11 }}>
+              Node’larda çalıştır
             </div>
             <div className="row">
               {nodes.map((n) => (
@@ -304,7 +319,7 @@ export function ChecksPage() {
           </div>
 
           <div className="row">
-            <button type="submit">{editId ? "Save" : "Deploy"}</button>
+            <button type="submit">{editId ? "Kaydet" : "Ekle"}</button>
             {editId && (
               <button
                 type="button"
@@ -322,7 +337,7 @@ export function ChecksPage() {
       </div>
 
       <div className="panel">
-        <h2>Fleet</h2>
+        <h2>Liste</h2>
         <table>
           <thead>
             <tr>
@@ -348,14 +363,19 @@ export function ChecksPage() {
                 <td>{c.lastLatencyMs != null ? `${c.lastLatencyMs}ms` : "—"}</td>
                 <td>{c.nodes.map((n) => n.node.location).join(", ") || "—"}</td>
                 <td className="row">
-                  <Link to={`/checks/${c.id}`}><button className="secondary" type="button">Detail</button></Link>
+                  <Link className="mono" to={`/checks/${c.id}`} style={{ alignSelf: "center" }}>Detay</Link>
                   <button className="secondary" type="button" onClick={() => startEdit(c)}>Edit</button>
                   <button
                     className="danger"
                     type="button"
                     onClick={async () => {
-                      await api(`/admin/checks/${c.id}`, { method: "DELETE" });
-                      await load();
+                      try {
+                        await apiDelete(`/admin/checks/${c.id}`, c.name);
+                        await load();
+                      } catch (err) {
+                        if (err instanceof Error && err.message === "CANCELLED") return;
+                        setError(err instanceof Error ? err.message : "Silinemedi");
+                      }
                     }}
                   >
                     Delete
@@ -363,7 +383,7 @@ export function ChecksPage() {
                 </td>
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={7} className="empty">No monitors deployed</td></tr>}
+            {!rows.length && <tr><td colSpan={7} className="empty">Monitor yok</td></tr>}
           </tbody>
         </table>
       </div>

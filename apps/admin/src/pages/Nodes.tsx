@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, apiDelete } from "../api";
 
 type Node = {
   id: string; name: string; location: string; online: boolean; enabled: boolean;
@@ -132,9 +132,13 @@ export function NodesPage() {
                   <button className="secondary" type="button" onClick={() => rotate(n.id)}>Rotate + install</button>
                   <button className="secondary" type="button" onClick={() => toggle(n)}>{n.enabled ? "Disable" : "Enable"}</button>
                   <button className="danger" type="button" onClick={async () => {
-                    if (!confirm("Delete node?")) return;
-                    await api(`/admin/nodes/${n.id}`, { method: "DELETE" });
-                    await load();
+                    try {
+                      await apiDelete(`/admin/nodes/${n.id}`, n.name);
+                      await load();
+                    } catch (err) {
+                      if (err instanceof Error && err.message === "CANCELLED") return;
+                      setError(err instanceof Error ? err.message : "Silinemedi");
+                    }
                   }}>Delete</button>
                 </td>
               </tr>

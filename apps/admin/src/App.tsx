@@ -40,22 +40,22 @@ function Login() {
     <div className="login-wrap">
       <form className="login-box grid" onSubmit={onSubmit}>
         <div className="login-kicker">
-          <span className="brand-dot" /> NEXUS OPS
+          <span className="brand-dot" /> Status
         </div>
-        <h1>STATUS GRID</h1>
+        <h1>Olfe & İncinet</h1>
         <p className="muted" style={{ marginTop: -4 }}>
-          Multi-node probes · Olfe & İncinet · live telemetry
+          Monitor yönetimi ve bakım operasyonu
         </p>
         <label>
-          Access ID
+          Email
           <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
         </label>
         <label>
-          Auth Key
+          Password
           <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
         </label>
         {error && <div className="error">{error}</div>}
-        <button disabled={loading}>{loading ? "AUTH…" : "ENTER GRID"}</button>
+        <button disabled={loading}>{loading ? "Giriş…" : "Giriş yap"}</button>
       </form>
     </div>
   );
@@ -75,8 +75,8 @@ function Shell({ children }: { children: React.ReactNode }) {
     () =>
       [
         {
-          title: "Command",
-          items: [["/", "◈", "Dashboard"]] as const,
+          title: "Overview",
+          items: [["/", "●", "Dashboard"]] as const,
         },
         {
           title: "Catalog",
@@ -90,7 +90,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           items: [["/imap", "✉", "IMAP / TT"]] as const,
         },
         {
-          title: "Probes",
+          title: "Monitoring",
           items: [
             ["/nodes", "⬡", "Nodes"],
             ["/checks", "◎", "Monitors"],
@@ -118,9 +118,9 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="brand">
           <div className="brand-mark">
             <span className="brand-dot" />
-            NEXUS
+            Status
           </div>
-          <div className="brand-sub">OLFE · INCINET // STATUS</div>
+          <div className="brand-sub">Olfe · İncinet ISS</div>
         </div>
 
         <nav className="nav">
@@ -140,17 +140,17 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="sidebar-foot">
           <div className="sidebar-meta">
             <strong>{now.toLocaleTimeString("tr-TR")}</strong>
-            SYS.LIVE · GRID ONLINE
+            Admin panel
           </div>
           <button
             className="secondary"
-            style={{ width: "100%" }}
+            style={{ width: "100%", background: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.12)" }}
             onClick={() => {
               setToken(null);
               nav("/login");
             }}
           >
-            Disconnect
+            Çıkış
           </button>
         </div>
       </aside>

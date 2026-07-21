@@ -1,6 +1,8 @@
 # Status Probe Agent
 
-Remote multi-location checker for Olfe / İncinet ISS status backend.
+Remote multi-location checker for Olfe / İncinet ISS status backend (v1.2.0).
+
+Supports **HTTP** (method/headers/body/keyword/SSL expiry), **TCP**, and **ICMP** ping.
 
 ## Quick remote install (Linux)
 

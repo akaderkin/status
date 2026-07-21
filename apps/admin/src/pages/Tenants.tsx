@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "../api";
+import { api, apiDelete } from "../api";
 
 type Tenant = { id: string; slug: string; name: string; description: string | null; brandColor: string | null };
 
@@ -82,9 +82,13 @@ export function TenantsPage() {
                     setForm({ slug: t.slug, name: t.name, description: t.description || "", brandColor: t.brandColor || "" });
                   }}>Edit</button>
                   <button className="danger" type="button" onClick={async () => {
-                    if (!confirm(`Delete ${t.slug}?`)) return;
-                    await api(`/admin/tenants/${t.id}`, { method: "DELETE" });
-                    await load();
+                    try {
+                      await apiDelete(`/admin/tenants/${t.id}`, t.slug);
+                      await load();
+                    } catch (err) {
+                      if (err instanceof Error && err.message === "CANCELLED") return;
+                      setError(err instanceof Error ? err.message : "Silinemedi");
+                    }
                   }}>Delete</button>
                 </td>
               </tr>

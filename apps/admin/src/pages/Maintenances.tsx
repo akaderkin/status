@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api } from "../api";
+import { api, apiDelete } from "../api";
 
 type Service = { id: string; name: string; tenantId: string };
 type Tenant = { id: string; name: string };
@@ -190,8 +190,13 @@ export function MaintenancesPage() {
                     await load();
                   }}>Cancel</button>
                   <button className="danger" type="button" onClick={async () => {
-                    await api(`/admin/maintenances/${m.id}`, { method: "DELETE" });
-                    await load();
+                    try {
+                      await apiDelete(`/admin/maintenances/${m.id}`, m.title);
+                      await load();
+                    } catch (err) {
+                      if (err instanceof Error && err.message === "CANCELLED") return;
+                      setError(err instanceof Error ? err.message : "Silinemedi");
+                    }
                   }}>Delete</button>
                 </td>
               </tr>
