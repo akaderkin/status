@@ -1,20 +1,23 @@
+# Build context: repository root
+# DigitalOcean App Platform: Worker → Dockerfile path = apps/worker/Dockerfile
+
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
-RUN npm install --workspace=@status/shared --workspace=@status/api --workspace=@status/worker
+RUN npm ci --workspace=@status/shared --workspace=@status/api --workspace=@status/worker
 
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY package.json package-lock.json ./
+COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api/prisma apps/api/prisma
 COPY apps/api/package.json apps/api/
 COPY apps/worker apps/worker
-COPY tsconfig.base.json ./
 RUN npm run build -w @status/shared \
   && npx prisma generate --schema=apps/api/prisma/schema.prisma \
   && npm run build -w @status/worker
