@@ -7,9 +7,10 @@ services:
       repo: akaderkin/status
       branch: main
       deploy_on_push: true
-    dockerfile_path: apps/api/Dockerfile
     source_dir: /
-    http_port: 3000
+    build_command: npm run build:backend
+    run_command: npm run start
+    http_port: 8080
     instance_count: 1
     instance_size_slug: basic-xxs
     health_check:
@@ -17,14 +18,9 @@ services:
     routes:
       - path: /
     envs:
-      - key: API_HOST
-        value: "0.0.0.0"
-      - key: API_PORT
-        value: "3000"
+      - key: NODE_ENV
+        value: "production"
       - key: DATABASE_URL
-        scope: RUN_TIME
-        type: SECRET
-      - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
       - key: JWT_SECRET
@@ -49,10 +45,6 @@ services:
         type: GENERAL
       - key: AGENT_STALE_MS
         value: "120000"
-      - key: KUMA_POLL_INTERVAL_MS
-        value: "30000"
-      - key: IMAP_POLL_INTERVAL_MS
-        value: "60000"
 
 workers:
   - name: worker
@@ -60,15 +52,15 @@ workers:
       repo: akaderkin/status
       branch: main
       deploy_on_push: true
-    dockerfile_path: apps/worker/Dockerfile
     source_dir: /
+    build_command: npm run build:backend
+    run_command: npm run start:worker
     instance_count: 1
     instance_size_slug: basic-xxs
     envs:
+      - key: NODE_ENV
+        value: "production"
       - key: DATABASE_URL
-        scope: RUN_TIME
-        type: SECRET
-      - key: REDIS_URL
         scope: RUN_TIME
         type: SECRET
       - key: ENCRYPTION_KEY

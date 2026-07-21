@@ -13,8 +13,7 @@ Tek merkezi multi-tenant status backend. Uptime Kuma, IMAP (Türk Telekom bakım
 
 ```bash
 cp .env.example .env
-# DATABASE_URL: local Postgres veya Neon
-# REDIS_URL: redis://localhost:6379
+# DATABASE_URL: Neon veya local Postgres
 # PUBLIC_API_URL: dışarıdan erişilen API (agent install için)
 
 npm install
@@ -95,7 +94,7 @@ Admin → **IMAP / TT** → hesap + filtre. Worker mailleri `pending` maintenanc
 
 ## Ortam değişkenleri
 
-- `DATABASE_URL`, `REDIS_URL`
+- `DATABASE_URL`
 - `JWT_SECRET`, `ENCRYPTION_KEY`
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 - `PUBLIC_API_URL` (opsiyonel; install komutları için)

@@ -15,16 +15,6 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   api:
     build:
       context: .
@@ -32,15 +22,12 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://status:status@postgres:5432/status?schema=public
-      REDIS_URL: redis://redis:6379
       API_HOST: 0.0.0.0
       API_PORT: 3000
     ports:
       - "3000:3000"
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   worker:
@@ -50,11 +37,8 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://status:status@postgres:5432/status?schema=public
-      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   admin:
@@ -65,16 +49,6 @@ services:
       - "5173:80"
     depends_on:
       - api
-
-  # Optional: run a local probe node in compose
-  # agent:
-  #   build:
-  #     context: apps/agent
-  #   environment:
-  #     STATUS_API_URL: http://api:3000
-  #     NODE_TOKEN: sn_from_admin
-  #   depends_on:
-  #     - api
 
 volumes:
   postgres_data:

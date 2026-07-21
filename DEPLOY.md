@@ -1,33 +1,45 @@
-# Deploy
+# DigitalOcean App Platform (Buildpack)
 
-## Cloudflare Pages — Admin (önerilen)
+UI Dockerfile’a geçmiyorsa Buildpack kullan — repo buna hazır.
 
-Sadece admin UI. API Cloudflare Pages’te çalışmaz.
+## Web Service ayarları
 
-1. Cloudflare → Workers & Pages → Create → Connect `akaderkin/status`
-2. Ayarlar:
-   - **Build command:** `npm ci && npm run build -w @status/admin`
-   - **Build output directory:** `apps/admin/dist`
-   - **Root:** `/`
-3. Env (Build):
-   - `VITE_API_URL` = `https://api.senin-domain.com` (API URL’in)
-4. Deploy
+- **Build strategy:** Buildpack (olduğu gibi bırak)
+- **Build command:**
+  ```
+  npm run build:backend
+  ```
+- **Run command:**
+  ```
+  npm run start
+  ```
+- **HTTP port:** `8080` (DO `PORT` verir; API artık `PORT` dinliyor)
+- **Health check:** `/health`
+- Source directory: boş / `/`
 
-Login sonrası admin API’ye CORS ile bağlanır → API’de:
+## Worker (ayrı resource)
+
+- Tip: **Worker**
+- Build command: `npm run build:backend`
+- Run command: `npm run start:worker`
+
+## Env (Redis yok)
+
 ```
-CORS_ORIGIN=https://status-admin.pages.dev,https://admin.senin-domain.com
+DATABASE_URL=...neon...
+JWT_SECRET=...
+ENCRYPTION_KEY=...
+ADMIN_EMAIL=admin@olfe.net
+ADMIN_PASSWORD=...
+CORS_ORIGIN=*
+PUBLIC_API_URL=https://SENIN-APP.ondigitalocean.app
+STATUS_API_URL=https://SENIN-APP.ondigitalocean.app
 ```
 
-## API + Worker (zorunlu ayrı host)
+`NODE_TOKEN` ekleme. `API_PORT` gerekmez.
 
-IMAP worker + Prisma uzun süreç ister. Seçenekler:
+## Cloudflare Admin (opsiyonel)
 
-- DigitalOcean App Platform → **Dockerfile** Web Service + Worker  
-  (`apps/api/Dockerfile`, `apps/worker/Dockerfile`) — Functions/buildpack değil
-- Fly.io / Railway / tek Droplet + docker compose
-
-```bash
-doctl apps create --spec .do/app.yaml
-```
-
-Buildpack (Heroku-style) kullanırsan `npm run build` artık `prisma generate` yapar.
+Build: `npm ci && npm run build -w @status/admin`  
+Output: `apps/admin/dist`  
+Env: `VITE_API_URL=https://SENIN-APP.ondigitalocean.app`

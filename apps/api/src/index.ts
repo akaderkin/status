@@ -5,7 +5,6 @@ import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import { ZodError } from "zod";
 import { registerAuth } from "./lib/auth.js";
-import { getRedis } from "./lib/redis.js";
 import { authRoutes } from "./routes/auth.js";
 import { tenantRoutes } from "./routes/tenants.js";
 import { serviceRoutes } from "./routes/services.js";
@@ -33,14 +32,17 @@ await app.register(jwt, {
 await app.register(rateLimit, {
   max: 300,
   timeWindow: "1 minute",
-  redis: getRedis(),
   nameSpace: "status-rl-",
   allowList: (req) => {
     const url = req.url.split("?")[0] || "";
-    // Protect login from brute force; allow other authenticated admin traffic more freely via higher limit
     if (url === "/admin/auth/login") return false;
     if (url.startsWith("/admin/")) return true;
-    if (url.startsWith("/v1/agent/download/") || url === "/v1/agent/install.sh" || url === "/v1/agent/systemd.service" || url === "/v1/agent/meta") {
+    if (
+      url.startsWith("/v1/agent/download/") ||
+      url === "/v1/agent/install.sh" ||
+      url === "/v1/agent/systemd.service" ||
+      url === "/v1/agent/meta"
+    ) {
       return true;
     }
     return false;
@@ -75,7 +77,8 @@ await app.register(publicRoutes);
 await app.register(dashboardRoutes);
 
 const host = process.env.API_HOST || "0.0.0.0";
-const port = Number(process.env.API_PORT || 3000);
+// DigitalOcean / Heroku inject PORT (often 8080)
+const port = Number(process.env.PORT || process.env.API_PORT || 3000);
 
 await app.listen({ host, port });
 console.log(`API listening on http://${host}:${port}`);
