@@ -4,7 +4,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY packages/shared/package.json packages/shared/
+COPY libs/shared/package.json libs/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 RUN npm ci --workspace=@status/shared --workspace=@status/api --workspace=@status/worker
@@ -14,7 +14,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY tsconfig.base.json ./
-COPY packages/shared packages/shared
+COPY libs/shared libs/shared
 COPY apps/api/prisma apps/api/prisma
 COPY apps/api/package.json apps/api/
 COPY apps/worker apps/worker
@@ -26,7 +26,7 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/shared ./packages/shared
+COPY --from=build /app/libs/shared ./libs/shared
 COPY --from=build /app/apps/worker ./apps/worker
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 COPY --from=build /app/package.json ./

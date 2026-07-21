@@ -107,5 +107,5 @@ apps/api       # Fastify + Prisma + agent binary serve
 apps/worker    # Kuma + IMAP
 apps/admin     # React admin
 apps/agent     # Go probe + install.sh + systemd
-packages/shared
+libs/shared
 ```

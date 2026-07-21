@@ -1,18 +1,24 @@
 # DigitalOcean App Platform
 
-Bu repo **Functions değil**, **Dockerfile Web Service + Worker**.
+Önemli: Bu repo **Functions değil**. `packages/` klasörü DO Functions’ı tetikliyordu; artık `libs/`.
 
-## Yeni App oluştururken
+## Mevcut bozuk App’i düzelt
 
-1. Create App → GitHub → `akaderkin/status`
-2. Auto-detect’i **yoksay** / Functions seçme
-3. Manuel ekle:
-   - **Web Service** → Dockerfile path: `apps/api/Dockerfile` → HTTP port `3000`
-   - **Worker** → Dockerfile path: `apps/worker/Dockerfile`
-4. Env secrets’ları ekle (DATABASE_URL, REDIS_URL, JWT_SECRET, …)
-5. Valkey’i Trusted Sources’ta App’e aç
+1. App’i **sil** (Functions olarak oluşturulmuş)
+2. **Create App** → GitHub `akaderkin/status`
+3. Resource olarak şunları ekle (Detect edilen Function’ları **Add etme / Remove**):
+   - **Web Service**
+     - Type: Dockerfile
+     - Dockerfile path: `apps/api/Dockerfile`
+     - HTTP port: `3000`
+     - Health check: `/health`
+   - **Worker**
+     - Type: Dockerfile  
+     - Dockerfile path: `apps/worker/Dockerfile`
+4. Environment variables’ı ekle
+5. Valkey → Trusted Sources → bu App
 
-Hazır spec: [`.do/app.yaml`](.do/app.yaml)
+Veya spec ile:
 
 ```bash
 doctl apps create --spec .do/app.yaml
@@ -20,4 +26,4 @@ doctl apps create --spec .do/app.yaml
 
 ## Cloudflare Admin
 
-Admin’i DO’ya koyma. `apps/admin` → Cloudflare Pages (`dist`).
+`apps/admin` → Cloudflare Pages. DO’ya koyma.
