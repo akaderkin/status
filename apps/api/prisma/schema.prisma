@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ComponentStatus {
+  operational
+  degraded
+  partial_outage
+  major_outage
+  maintenance
+  unknown
+}
+
+enum CheckType {
+  http
+  tcp
+  icmp
+}
+
+enum CheckResultStatus {
+  up
+  down
+  degraded
+}
+
+enum IncidentStatus {
+  investigating
+  identified
+  monitoring
+  resolved
+}
+
+enum IncidentSource {
+  kuma
+  agent
+  manual
+  maintenance
+}
+
+enum MaintenanceStatus {
+  pending
+  approved
+  active
+  completed
+  cancelled
+}
+
+enum MonitorSourceType {
+  uptime_kuma
+  agent
+  manual
+}
+
+model Tenant {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  brandColor  String?  @map("brand_color")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  services      Service[]
+  kumaInstances KumaInstance[]
+  imapAccounts  ImapAccount[]
+  probeNodes    ProbeNode[]
+  checks        Check[]
+  incidents     Incident[]
+  maintenances  Maintenance[]
+
+  @@map("tenants")
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model Service {
+  id          String              @id @default(uuid())
+  tenantId    String              @map("tenant_id")
+  name        String
+  description String?
+  groupName   String?             @map("group_name")
+  sortOrder   Int                 @default(0) @map("sort_order")
+  sourceType  MonitorSourceType   @default(manual) @map("source_type")
+  status      ComponentStatus     @default(unknown)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kumaMappings  KumaMonitorMap[]
+  checks        Check[]
+  incidents     IncidentService[]
+  maintenances  MaintenanceService[]
+
+  @@index([tenantId])
+  @@map("services")
+}
+
+model KumaInstance {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  name           String
+  baseUrl        String   @map("base_url")
+  apiTokenEnc    String   @map("api_token_enc")
+  pollIntervalMs Int      @default(30000) @map("poll_interval_ms")
+  enabled        Boolean  @default(true)
+  lastPolledAt   DateTime? @map("last_polled_at")
+  lastError      String?  @map("last_error")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mappings KumaMonitorMap[]
+
+  @@index([tenantId])
+  @@map("kuma_instances")
+}
+
+model KumaMonitorMap {
+  id              String   @id @default(uuid())
+  kumaInstanceId  String   @map("kuma_instance_id")
+  serviceId       String   @map("service_id")
+  kumaMonitorId   Int      @map("kuma_monitor_id")
+  kumaMonitorName String?  @map("kuma_monitor_name")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  kumaInstance KumaInstance @relation(fields: [kumaInstanceId], references: [id], onDelete: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([kumaInstanceId, kumaMonitorId])
+  @@index([serviceId])
+  @@map("kuma_monitor_maps")
+}
+
+model ImapAccount {
+  id             String   @id @default(uuid())
+  tenantId       String?  @map("tenant_id")
+  name           String
+  host           String
+  port           Int      @default(993)
+  secure         Boolean  @default(true)
+  username       String
+  passwordEnc    String   @map("password_enc")
+  folder         String   @default("INBOX")
+  pollIntervalMs Int      @default(60000) @map("poll_interval_ms")
+  enabled        Boolean  @default(true)
+  fromFilter     String?  @map("from_filter")
+  subjectFilter  String?  @map("subject_filter")
+  lastPolledAt   DateTime? @map("last_polled_at")
+  lastUid        Int?     @map("last_uid")
+  lastError      String?  @map("last_error")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  maintenances Maintenance[]
+
+  @@index([tenantId])
+  @@map("imap_accounts")
+}
+
+model ProbeNode {
+  id            String    @id @default(uuid())
+  tenantId      String?   @map("tenant_id")
+  name          String
+  location      String
+  tokenHash     String    @map("token_hash")
+  tokenPrefix   String    @map("token_prefix")
+  enabled       Boolean   @default(true)
+  lastHeartbeat DateTime? @map("last_heartbeat")
+  hostname      String?
+  version       String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tenant  Tenant?      @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  checks  CheckNode[]
+  results CheckResult[]
+
+  @@index([tokenPrefix])
+  @@map("probe_nodes")
+}
+
+model Check {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  serviceId      String    @map("service_id")
+  name           String
+  type           CheckType @default(http)
+  target         String
+  intervalMs     Int       @default(60000) @map("interval_ms")
+  timeoutMs      Int       @default(10000) @map("timeout_ms")
+  expectedStatus Int?      @map("expected_status")
+  enabled        Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  service Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  nodes   CheckNode[]
+  results CheckResult[]
+
+  @@index([tenantId])
+  @@index([serviceId])
+  @@map("checks")
+}
+
+model CheckNode {
+  checkId String @map("check_id")
+  nodeId  String @map("node_id")
+
+  check Check     @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  node  ProbeNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@id([checkId, nodeId])
+  @@map("check_nodes")
+}
+
+model CheckResult {
+  id         String            @id @default(uuid())
+  checkId    String            @map("check_id")
+  nodeId     String            @map("node_id")
+  status     CheckResultStatus
+  latencyMs  Int?              @map("latency_ms")
+  message    String?
+  checkedAt  DateTime          @default(now()) @map("checked_at")
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  check Check     @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  node  ProbeNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([checkId, checkedAt])
+  @@index([nodeId, checkedAt])
+  @@map("check_results")
+}
+
+model Incident {
+  id        String         @id @default(uuid())
+  tenantId  String         @map("tenant_id")
+  title     String
+  message   String?
+  status    IncidentStatus @default(investigating)
+  source    IncidentSource @default(manual)
+  startedAt DateTime       @default(now()) @map("started_at")
+  resolvedAt DateTime?     @map("resolved_at")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  services IncidentService[]
+
+  @@index([tenantId, status])
+  @@map("incidents")
+}
+
+model IncidentService {
+  incidentId String @map("incident_id")
+  serviceId  String @map("service_id")
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([incidentId, serviceId])
+  @@map("incident_services")
+}
+
+model Maintenance {
+  id            String            @id @default(uuid())
+  tenantId      String            @map("tenant_id")
+  imapAccountId String?           @map("imap_account_id")
+  title         String
+  summary       String?
+  status        MaintenanceStatus @default(pending)
+  startsAt      DateTime          @map("starts_at")
+  endsAt        DateTime          @map("ends_at")
+  emailMessageId String?          @map("email_message_id")
+  emailSubject  String?           @map("email_subject")
+  emailFrom     String?           @map("email_from")
+  emailRawHash  String?           @map("email_raw_hash")
+  emailBody     String?           @map("email_body")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  imapAccount ImapAccount?         @relation(fields: [imapAccountId], references: [id], onDelete: SetNull)
+  services    MaintenanceService[]
+
+  @@unique([emailMessageId])
+  @@index([tenantId, status])
+  @@index([emailRawHash])
+  @@map("maintenances")
+}
+
+model MaintenanceService {
+  maintenanceId String @map("maintenance_id")
+  serviceId     String @map("service_id")
+
+  maintenance Maintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([maintenanceId, serviceId])
+  @@map("maintenance_services")
+}

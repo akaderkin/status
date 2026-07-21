@@ -1,0 +1,18 @@
+[Unit]
+Description=Status probe agent (Olfe / Incinet)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=status-agent
+Group=status-agent
+EnvironmentFile=/etc/status-agent/agent.env
+ExecStart=/usr/local/bin/status-agent
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

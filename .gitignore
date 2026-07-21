@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+apps/*/.env
+*.log
+.DS_Store
+coverage/
+apps/agent/status-agent
+apps/agent/status-agent.exe
+apps/api/public/agent/status-agent-*
+prisma/*.db
+.turbo/
+*.tsbuildinfo

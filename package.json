@@ -1,0 +1,23 @@
+{
+  "name": "status-backend",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @status/api & npm run dev -w @status/worker & npm run dev -w @status/admin",
+    "dev:api": "npm run dev -w @status/api",
+    "dev:worker": "npm run dev -w @status/worker",
+    "dev:admin": "npm run dev -w @status/admin",
+    "build": "npm run build -w @status/shared && npm run build -w @status/api && npm run build -w @status/worker && npm run build -w @status/admin",
+    "agent:build": "./apps/agent/build-release.sh",
+    "db:generate": "npm run db:generate -w @status/api",
+    "db:migrate": "npm run db:migrate -w @status/api",
+    "db:seed": "npm run db:seed -w @status/api",
+    "db:push": "npm run db:push -w @status/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
