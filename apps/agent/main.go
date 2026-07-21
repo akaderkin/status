@@ -79,7 +79,7 @@ func loadConfig() Config {
 		APIURL:   strings.TrimRight(env("STATUS_API_URL", "http://localhost:3000"), "/"),
 		Token:    env("NODE_TOKEN", ""),
 		Hostname: env("AGENT_HOSTNAME", host),
-		Version:  "1.2.0",
+		Version:  "1.2.1",
 		Interval: time.Duration(intervalMs) * time.Millisecond,
 	}
 }
@@ -320,7 +320,7 @@ func probeHTTP(check Check, timeout time.Duration) (string, string, *string) {
 		req.Header.Set(k, v)
 	}
 	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "status-agent/1.2.0")
+		req.Header.Set("User-Agent", "status-agent/1.2.1")
 	}
 
 	resp, err := client.Do(req)
@@ -408,9 +408,12 @@ func probeICMP(target string, timeout time.Duration) (string, string) {
 	if h, _, err := net.SplitHostPort(target); err == nil {
 		host = h
 	}
-	// Strip URL schemes accidentally pasted
 	host = strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")
 	host = strings.Split(host, "/")[0]
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "down", "empty icmp target"
+	}
 
 	secs := int(timeout.Seconds())
 	if secs < 1 {
@@ -419,36 +422,77 @@ func probeICMP(target string, timeout time.Duration) (string, string) {
 	if secs > 30 {
 		secs = 30
 	}
+	ms := int(timeout.Milliseconds())
+	if ms < 500 {
+		ms = 500
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+2*time.Second)
 	defer cancel()
 
-	// Prefer system ping (works without CAP_NET_RAW on many VPS)
-	cmd := exec.CommandContext(ctx, "ping", "-c", "1", "-W", strconv.Itoa(secs), host)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		// macOS uses -W in milliseconds sometimes; try without -W
-		cmd2 := exec.CommandContext(ctx, "ping", "-c", "1", host)
-		out2, err2 := cmd2.CombinedOutput()
-		if err2 != nil {
-			msg := strings.TrimSpace(string(out))
-			if msg == "" {
-				msg = err.Error()
+	// Try common ping flag variants (Linux / BusyBox / macOS)
+	attempts := [][]string{
+		{"-c", "1", "-W", strconv.Itoa(secs), host},       // Linux: -W seconds
+		{"-c", "1", "-w", strconv.Itoa(secs), host},       // BusyBox / some Linux
+		{"-c", "1", "-W", strconv.Itoa(ms), host},         // macOS: -W milliseconds
+		{"-c", "1", host},
+	}
+
+	var lastOut []byte
+	var lastErr error
+	for _, args := range attempts {
+		cmd := exec.CommandContext(ctx, "ping", args...)
+		out, err := cmd.CombinedOutput()
+		lastOut, lastErr = out, err
+		if err == nil {
+			rtt := parsePingRTT(string(out))
+			msg := "icmp ok"
+			if rtt != "" {
+				msg = "icmp ok · " + rtt
 			}
-			return "down", msg
+			return "up", msg
 		}
-		out = out2
+		// Permission / missing binary → don't keep trying useless variants forever
+		low := strings.ToLower(string(out) + " " + err.Error())
+		if strings.Contains(low, "permission denied") || strings.Contains(low, "operation not permitted") {
+			return "down", "icmp permission denied (agent needs root or CAP_NET_RAW)"
+		}
+		if strings.Contains(low, "executable file not found") {
+			return "down", "ping binary not found on node"
+		}
 	}
-	line := strings.TrimSpace(string(out))
-	if len(line) > 200 {
-		line = line[:200]
+
+	msg := strings.TrimSpace(string(lastOut))
+	if msg == "" && lastErr != nil {
+		msg = lastErr.Error()
 	}
-	return "up", "icmp ok: " + firstLine(line)
+	if len(msg) > 240 {
+		msg = msg[:240]
+	}
+	return "down", msg
 }
 
-func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return strings.TrimSpace(s[:i])
+func parsePingRTT(out string) string {
+	// Linux: time=12.3 ms  | macOS: time=12.345 ms
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.Contains(line, "time=") {
+			continue
+		}
+		idx := strings.Index(line, "time=")
+		rest := line[idx+5:]
+		end := 0
+		for end < len(rest) && (rest[end] == '.' || (rest[end] >= '0' && rest[end] <= '9')) {
+			end++
+		}
+		if end == 0 {
+			continue
+		}
+		unit := "ms"
+		tail := strings.TrimSpace(rest[end:])
+		if strings.HasPrefix(tail, "ms") {
+			unit = "ms"
+		}
+		return rest[:end] + unit
 	}
-	return s
+	return ""
 }

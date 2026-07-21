@@ -2,13 +2,18 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
+  appType: "spa",
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,
     proxy: {
-      "/admin": "http://localhost:3000",
-      "/v1": "http://localhost:3000",
-      "/health": "http://localhost:3000",
+      "/admin": { target: "http://127.0.0.1:3000", changeOrigin: true },
+      "/v1": { target: "http://127.0.0.1:3000", changeOrigin: true },
+      "/health": { target: "http://127.0.0.1:3000", changeOrigin: true },
     },
+  },
+  preview: {
+    port: 5173,
   },
 });

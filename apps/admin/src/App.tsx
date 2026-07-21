@@ -1,12 +1,12 @@
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api, getToken, setToken } from "./api";
 import { Dashboard } from "./pages/Dashboard";
 import { ServicesPage } from "./pages/Services";
 import { ImapPage } from "./pages/Imap";
 import { NodesPage } from "./pages/Nodes";
-import { ChecksPage } from "./pages/Checks";
-import { CheckDetailPage } from "./pages/CheckDetail";
+import { MonitorsPage } from "./pages/Monitors";
+import { MonitorDetailPage } from "./pages/MonitorDetail";
 import { MaintenancesPage } from "./pages/Maintenances";
 import { IncidentsPage } from "./pages/Incidents";
 import { TenantsPage } from "./pages/Tenants";
@@ -30,7 +30,7 @@ function Login() {
       setToken(res.token);
       nav("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "Giriş başarısız");
     } finally {
       setLoading(false);
     }
@@ -44,15 +44,15 @@ function Login() {
         </div>
         <h1>Olfe & İncinet</h1>
         <p className="muted" style={{ marginTop: -4 }}>
-          Monitor yönetimi ve bakım operasyonu
+          Monitör, node ve bakım yönetimi
         </p>
         <label>
           Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required autoComplete="username" />
         </label>
         <label>
-          Password
-          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
+          Şifre
+          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required autoComplete="current-password" />
         </label>
         {error && <div className="error">{error}</div>}
         <button disabled={loading}>{loading ? "Giriş…" : "Giriş yap"}</button>
@@ -75,32 +75,26 @@ function Shell({ children }: { children: React.ReactNode }) {
     () =>
       [
         {
-          title: "Overview",
-          items: [["/", "●", "Dashboard"]] as const,
-        },
-        {
-          title: "Catalog",
+          title: "Ana",
           items: [
-            ["/tenants", "▣", "Tenants"],
-            ["/services", "▤", "Services"],
+            ["/", "▣", "Dashboard"],
+            ["/monitors", "◎", "Monitörler"],
           ] as const,
         },
         {
-          title: "Ingest",
-          items: [["/imap", "✉", "IMAP / TT"]] as const,
-        },
-        {
-          title: "Monitoring",
+          title: "Altyapı",
           items: [
             ["/nodes", "⬡", "Nodes"],
-            ["/checks", "◎", "Monitors"],
+            ["/services", "▤", "Servisler"],
+            ["/tenants", "◈", "Tenantlar"],
           ] as const,
         },
         {
-          title: "Ops",
+          title: "Operasyon",
           items: [
-            ["/maintenances", "⚒", "Maintenances"],
-            ["/incidents", "⚠", "Incidents"],
+            ["/imap", "✉", "IMAP / TT"],
+            ["/maintenances", "⚒", "Bakımlar"],
+            ["/incidents", "⚠", "Olaylar"],
           ] as const,
         },
       ] as const,
@@ -109,7 +103,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   function navActive(to: string) {
     if (to === "/") return loc.pathname === "/";
-    return loc.pathname === to || loc.pathname.startsWith(to + "/");
+    return loc.pathname === to || loc.pathname.startsWith(`${to}/`);
   }
 
   return (
@@ -144,7 +138,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <button
             className="secondary"
-            style={{ width: "100%", background: "rgba(255,255,255,0.08)", color: "#e2e8f0", borderColor: "rgba(255,255,255,0.12)" }}
+            style={{ width: "100%", background: "rgba(255,255,255,0.06)", color: "#e5e7eb", borderColor: "rgba(255,255,255,0.1)" }}
             onClick={() => {
               setToken(null);
               nav("/login");
@@ -164,6 +158,21 @@ function Private({ children }: { children: React.ReactNode }) {
   return <Shell>{children}</Shell>;
 }
 
+function RedirectLegacyCheck() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/monitors/${id}` : "/monitors"} replace />;
+}
+
+function NotFound() {
+  return (
+    <div className="not-found">
+      <h1>Sayfa yok</h1>
+      <p className="muted">Bu adres tanımlı değil.</p>
+      <p style={{ marginTop: 16 }}><Link to="/">Dashboard’a dön</Link> · <Link to="/monitors">Monitörler</Link></p>
+    </div>
+  );
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
@@ -173,14 +182,17 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Private><Dashboard /></Private>} />
+      <Route path="/monitors" element={<Private><MonitorsPage /></Private>} />
+      <Route path="/monitors/:id" element={<Private><MonitorDetailPage /></Private>} />
+      <Route path="/checks" element={<Navigate to="/monitors" replace />} />
+      <Route path="/checks/:id" element={<RedirectLegacyCheck />} />
       <Route path="/tenants" element={<Private><TenantsPage /></Private>} />
       <Route path="/services" element={<Private><ServicesPage /></Private>} />
       <Route path="/imap" element={<Private><ImapPage /></Private>} />
       <Route path="/nodes" element={<Private><NodesPage /></Private>} />
-      <Route path="/checks" element={<Private><ChecksPage /></Private>} />
-      <Route path="/checks/:id" element={<Private><CheckDetailPage /></Private>} />
       <Route path="/maintenances" element={<Private><MaintenancesPage /></Private>} />
       <Route path="/incidents" element={<Private><IncidentsPage /></Private>} />
+      <Route path="*" element={<Private><NotFound /></Private>} />
     </Routes>
   );
 }
