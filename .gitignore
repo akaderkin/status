@@ -9,7 +9,7 @@ apps/*/.env
 coverage/
 apps/agent/status-agent
 apps/agent/status-agent.exe
-apps/api/public/agent/status-agent-*
+apps/api/public/agent/status-agent-darwin-*
 prisma/*.db
 .turbo/
 *.tsbuildinfo
