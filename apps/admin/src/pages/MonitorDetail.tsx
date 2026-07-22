@@ -123,7 +123,13 @@ export function MonitorDetailPage() {
       <div className="header">
         <div>
           <div className="sub"><Link to="/monitors">← Monitörler</Link></div>
-          <h1>{detail?.name || "Monitör"}</h1>
+          <h1>
+            {detail
+              ? detail.operator
+                ? `${detail.operator} / ${detail.name}`
+                : detail.name
+              : "Monitör"}
+          </h1>
           {detail && (
             <div className="sub">{detail.tenant.name} · {detail.service.name}</div>
           )}
@@ -202,7 +208,6 @@ export function MonitorDetailPage() {
             <div className="mono" style={{ fontSize: 14 }}>{detail.target}</div>
             <div className="muted" style={{ marginTop: 8 }}>
               <span className="type-pill">{detail.type}</span>
-              {detail.operator && <>{" · "}<span className="type-pill">{detail.operator}</span></>}
               {" · "}timeout {detail.timeoutMs}ms
               {" · "}{detail.enabled ? "aktif" : "duraklatıldı"}
               {detail.lastCheckedAt && ` · son kontrol ${new Date(detail.lastCheckedAt).toLocaleString("tr-TR")}`}

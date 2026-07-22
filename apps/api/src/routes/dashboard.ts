@@ -48,7 +48,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         orderBy: { checkedAt: "desc" },
         take: 20,
         include: {
-          check: { select: { id: true, name: true } },
+          check: { select: { id: true, name: true, operator: true } },
           node: { select: { name: true, location: true } },
         },
       }),
@@ -109,6 +109,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
           name: c.name,
           type: c.type,
           target: c.target,
+          operator: c.operator,
           enabled: c.enabled,
           lastStatus: c.lastStatus,
           lastLatencyMs: c.lastLatencyMs,

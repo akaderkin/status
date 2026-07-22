@@ -7,6 +7,7 @@ type Monitor = {
   name: string;
   type: string;
   target: string;
+  operator: string | null;
   enabled: boolean;
   lastStatus: string | null;
   lastLatencyMs: number | null;
@@ -38,7 +39,7 @@ type Dash = {
     status: string;
     message: string | null;
     checkedAt: string;
-    check: { id: string; name: string };
+    check: { id: string; name: string; operator: string | null };
     node: { name: string; location: string };
   }>;
 };
@@ -115,7 +116,9 @@ export function Dashboard() {
                 >
                   <div className="monitor-top">
                     <div>
-                      <div className="monitor-name">{m.name}</div>
+                      <div className="monitor-name">
+                        {m.operator ? `${m.operator} / ${m.name}` : m.name}
+                      </div>
                       <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>{m.tenant.slug} · {m.service.name}</div>
                     </div>
                     <span className={`badge ${m.lastStatus || "warn"}`}>{m.lastStatus || "bekliyor"}</span>
@@ -159,7 +162,11 @@ export function Dashboard() {
                   {data.recentFailures.map((f) => (
                     <tr key={f.id}>
                       <td className="mono">{new Date(f.checkedAt).toLocaleTimeString("tr-TR")}</td>
-                      <td><Link to={`/monitors/${f.check.id}`}>{f.check.name}</Link></td>
+                      <td>
+                        <Link to={`/monitors/${f.check.id}`}>
+                          {f.check.operator ? `${f.check.operator} / ${f.check.name}` : f.check.name}
+                        </Link>
+                      </td>
                       <td>{f.node.location}</td>
                       <td><span className={`badge ${f.status}`}>{f.status}</span></td>
                     </tr>

@@ -544,14 +544,15 @@ export function MonitorsPage() {
             <Link to={`/monitors/${c.id}`} style={{ color: "inherit", textDecoration: "none" }}>
               <div className="monitor-top">
                 <div>
-                  <div className="monitor-name">{c.name}</div>
+                  <div className="monitor-name">
+                    {c.operator ? `${c.operator} / ${c.name}` : c.name}
+                  </div>
                   <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>{c.service.name}</div>
                 </div>
                 <span className={`badge ${c.lastStatus || "warn"}`}>{c.lastStatus || "bekliyor"}</span>
               </div>
               <div className="monitor-meta">
                 <span className="type-pill">{c.type}</span>
-                {c.operator && <span className="type-pill">{c.operator}</span>}
                 <span>{c.lastLatencyMs != null ? `${c.lastLatencyMs} ms` : "—"}</span>
                 <span>her {Math.round(c.intervalMs / 1000)}s</span>
                 <span>{c.nodes.map((n) => n.node.location).join(", ") || "node yok"}</span>
