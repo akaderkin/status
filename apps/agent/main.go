@@ -79,7 +79,7 @@ func loadConfig() Config {
 		APIURL:   strings.TrimRight(env("STATUS_API_URL", "http://localhost:3000"), "/"),
 		Token:    env("NODE_TOKEN", ""),
 		Hostname: env("AGENT_HOSTNAME", host),
-		Version:  "1.2.1",
+		Version:  "1.2.2",
 		Interval: time.Duration(intervalMs) * time.Millisecond,
 	}
 }
@@ -250,7 +250,22 @@ func probe(check Check) Result {
 	var status, message string
 	var sslExpires *string
 
-	for attempt := 0; attempt <= retries; attempt++ {
+	// retries == 0 → keep trying until up (safety: 2 dk / 500 deneme)
+	// retries  N → toplam N+1 deneme (1 asıl + N tekrar)
+	infinite := retries <= 0
+	maxAttempts := retries + 1
+	if infinite {
+		maxAttempts = 500
+	}
+	deadline := start.Add(2 * time.Minute)
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if time.Now().After(deadline) {
+			if status == "" {
+				status, message = "down", "retry deadline exceeded"
+			}
+			break
+		}
 		switch strings.ToLower(check.Type) {
 		case "tcp":
 			status, message = probeTCP(check.Target, timeout)
@@ -259,10 +274,13 @@ func probe(check Check) Result {
 		default:
 			status, message, sslExpires = probeHTTP(check, timeout)
 		}
-		if status == "up" || attempt == retries {
+		if status == "up" {
 			break
 		}
-		time.Sleep(200 * time.Millisecond)
+		if !infinite && attempt+1 >= maxAttempts {
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
 	}
 
 	latency := int(time.Since(start).Milliseconds())
@@ -320,7 +338,7 @@ func probeHTTP(check Check, timeout time.Duration) (string, string, *string) {
 		req.Header.Set(k, v)
 	}
 	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "status-agent/1.2.1")
+		req.Header.Set("User-Agent", "status-agent/1.2.2")
 	}
 
 	resp, err := client.Do(req)

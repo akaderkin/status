@@ -130,13 +130,38 @@ export async function checkRoutes(app: FastifyInstance) {
 
   app.post("/admin/checks", { preHandler: requireAdmin }, async (request, reply) => {
     const body = CreateCheckSchema.parse(request.body);
+
+    let serviceId = body.serviceId;
+    if (!serviceId && body.serviceName) {
+      const existing = await prisma.service.findFirst({
+        where: { tenantId: body.tenantId, name: body.serviceName },
+      });
+      if (existing) {
+        serviceId = existing.id;
+      } else {
+        const created = await prisma.service.create({
+          data: {
+            tenantId: body.tenantId,
+            name: body.serviceName,
+            sourceType: "agent",
+            status: "unknown",
+          },
+        });
+        serviceId = created.id;
+      }
+    }
+    if (!serviceId) {
+      return reply.code(400).send({ error: "Servis adı gerekli" });
+    }
+
     const check = await prisma.check.create({
       data: {
         tenantId: body.tenantId,
-        serviceId: body.serviceId,
+        serviceId,
         name: body.name,
         type: body.type,
         target: body.target,
+        operator: body.operator?.trim() || null,
         intervalMs: body.intervalMs ?? 60000,
         timeoutMs: body.timeoutMs ?? 10000,
         expectedStatus: body.expectedStatus,
@@ -146,19 +171,44 @@ export async function checkRoutes(app: FastifyInstance) {
           ? { create: body.nodeIds.map((nodeId) => ({ nodeId })) }
           : undefined,
       },
-      include: { nodes: true },
+      include: { nodes: true, service: { select: { id: true, name: true } } },
     });
     await prisma.service.update({
-      where: { id: body.serviceId },
+      where: { id: serviceId },
       data: { sourceType: "agent" },
     });
     return reply.code(201).send(check);
   });
 
-  app.patch("/admin/checks/:id", { preHandler: requireAdmin }, async (request) => {
+  app.patch("/admin/checks/:id", { preHandler: requireAdmin }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = CreateCheckSchema.partial().omit({ tenantId: true }).parse(request.body);
-    const { nodeIds, config, serviceId, ...rest } = body;
+    const { nodeIds, config, serviceId, serviceName, operator, ...rest } = body;
+
+    const existing = await prisma.check.findUnique({ where: { id } });
+    if (!existing) return reply.code(404).send({ error: "Check not found" });
+
+    let nextServiceId = serviceId;
+    if (serviceName?.trim()) {
+      const name = serviceName.trim();
+      const found = await prisma.service.findFirst({
+        where: { tenantId: existing.tenantId, name },
+      });
+      if (found) {
+        nextServiceId = found.id;
+      } else if (existing.serviceId) {
+        // Rename current linked service if this check is its only monitor? Simpler: create/find by name.
+        const created = await prisma.service.create({
+          data: {
+            tenantId: existing.tenantId,
+            name,
+            sourceType: "agent",
+            status: "unknown",
+          },
+        });
+        nextServiceId = created.id;
+      }
+    }
 
     if (nodeIds) {
       await prisma.checkNode.deleteMany({ where: { checkId: id } });
@@ -173,10 +223,11 @@ export async function checkRoutes(app: FastifyInstance) {
       where: { id },
       data: {
         ...rest,
-        ...(serviceId ? { serviceId } : {}),
+        ...(nextServiceId ? { serviceId: nextServiceId } : {}),
+        ...(operator !== undefined ? { operator: operator?.trim() || null } : {}),
         ...(config !== undefined ? { config: config as Prisma.InputJsonValue } : {}),
       },
-      include: { nodes: true },
+      include: { nodes: true, service: { select: { id: true, name: true } } },
     });
   });
 

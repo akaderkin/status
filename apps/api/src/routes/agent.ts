@@ -69,7 +69,7 @@ export async function agentRoutes(app: FastifyInstance) {
       };
     });
     return {
-      version: "1.2.1",
+      version: "1.2.2",
       installScript: "/v1/agent/install.sh",
       systemdUnit: "/v1/agent/systemd.service",
       binaries,

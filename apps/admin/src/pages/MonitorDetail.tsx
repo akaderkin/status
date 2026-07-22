@@ -7,6 +7,7 @@ type Detail = {
   name: string;
   type: string;
   target: string;
+  operator: string | null;
   intervalMs: number;
   timeoutMs: number;
   enabled: boolean;
@@ -173,7 +174,7 @@ export function MonitorDetailPage() {
             </div>
             <div className="stat">
               <div className="label">Aralık</div>
-              <div className="value" style={{ fontSize: 20 }}>{Math.round(detail.intervalMs / 1000)}s</div>
+              <div className="value" style={{ fontSize: 20 }}>{Math.round(detail.intervalMs / 1000)} sn</div>
             </div>
             <div className="stat">
               <div className="label">SSL</div>
@@ -201,6 +202,7 @@ export function MonitorDetailPage() {
             <div className="mono" style={{ fontSize: 14 }}>{detail.target}</div>
             <div className="muted" style={{ marginTop: 8 }}>
               <span className="type-pill">{detail.type}</span>
+              {detail.operator && <>{" · "}<span className="type-pill">{detail.operator}</span></>}
               {" · "}timeout {detail.timeoutMs}ms
               {" · "}{detail.enabled ? "aktif" : "duraklatıldı"}
               {detail.lastCheckedAt && ` · son kontrol ${new Date(detail.lastCheckedAt).toLocaleString("tr-TR")}`}

@@ -47,7 +47,7 @@ export const CheckConfigSchema = z
     acceptedStatusCodes: z.array(z.number().int()).max(32).optional(),
     ignoreTls: z.boolean().optional(),
     maxRedirects: z.number().int().min(0).max(20).optional(),
-    retries: z.number().int().min(0).max(5).optional(),
+    retries: z.number().int().min(0).max(100).optional(),
   })
   .passthrough();
 export type CheckConfig = z.infer<typeof CheckConfigSchema>;
@@ -119,10 +119,12 @@ export const CreateProbeNodeSchema = z.object({
 
 export const CreateCheckSchema = z.object({
   tenantId: z.string().uuid(),
-  serviceId: z.string().uuid(),
+  serviceId: z.string().uuid().optional(),
+  serviceName: z.string().min(1).max(128).optional(),
   name: z.string().min(1).max(128),
   type: CheckType.default("http"),
   target: z.string().min(1).max(2048),
+  operator: z.string().max(128).nullable().optional(),
   intervalMs: z.number().int().min(5000).optional(),
   timeoutMs: z.number().int().min(1000).optional(),
   expectedStatus: z.number().int().optional(),

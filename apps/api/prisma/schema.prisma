@@ -105,6 +105,15 @@ model Service {
   @@map("services")
 }
 
+model Operator {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("operators")
+}
+
 model ImapAccount {
   id             String    @id @default(uuid())
   tenantId       String?   @map("tenant_id")
@@ -161,6 +170,7 @@ model Check {
   name           String
   type           CheckType          @default(http)
   target         String
+  operator       String?            @map("operator")
   intervalMs     Int                @default(60000) @map("interval_ms")
   timeoutMs      Int                @default(10000) @map("timeout_ms")
   expectedStatus Int?               @map("expected_status")

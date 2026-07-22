@@ -16,6 +16,7 @@ import { maintenanceRoutes } from "./routes/maintenances.js";
 import { agentRoutes } from "./routes/agent.js";
 import { publicRoutes } from "./routes/public.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
+import { operatorRoutes } from "./routes/operators.js";
 
 const app = Fastify({ logger: true });
 
@@ -87,6 +88,7 @@ await app.register(maintenanceRoutes);
 await app.register(agentRoutes);
 await app.register(publicRoutes);
 await app.register(dashboardRoutes);
+await app.register(operatorRoutes);
 
 const host = process.env.API_HOST || "0.0.0.0";
 // DigitalOcean / Heroku inject PORT (often 8080)

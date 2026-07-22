@@ -3,13 +3,15 @@ import { Link } from "react-router-dom";
 import { api, apiDelete } from "../api";
 
 type Tenant = { id: string; name: string };
-type Service = { id: string; name: string; tenantId: string };
+type Service = { id: string; name: string; tenantId: string; groupName: string | null };
 type Node = { id: string; name: string; location: string };
+type Operator = { id: string; name: string };
 type Monitor = {
   id: string;
   name: string;
   type: string;
   target: string;
+  operator: string | null;
   intervalMs: number;
   timeoutMs: number;
   expectedStatus: number | null;
@@ -32,10 +34,12 @@ const emptyForm = {
   name: "",
   type: "http",
   target: "",
-  intervalMs: 60000,
-  timeoutMs: 10000,
+  operator: "",
+  intervalSec: 60,
+  timeoutSec: 10,
   expectedStatus: "",
   nodeIds: [] as string[],
+  allNodes: true,
   enabled: true,
   method: "GET",
   keyword: "",
@@ -47,34 +51,67 @@ const emptyForm = {
   retries: "0",
 };
 
+type StatusFilter = "all" | "up" | "down" | "degraded";
+
 export function MonitorsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [operators, setOperators] = useState<Operator[]>([]);
+  const [newOperator, setNewOperator] = useState("");
   const [rows, setRows] = useState<Monitor[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  const tenantServices = useMemo(
+    () => services.filter((s) => s.tenantId === form.tenantId),
+    [services, form.tenantId]
+  );
+
   async function load() {
-    const [t, s, n, c] = await Promise.all([
+    const [t, s, n, c, ops] = await Promise.all([
       api<Tenant[]>("/admin/tenants"),
       api<Service[]>("/admin/services"),
       api<Node[]>("/admin/nodes"),
       api<Monitor[]>("/admin/checks"),
+      api<Operator[]>("/admin/operators"),
     ]);
     setTenants(t);
     setServices(s);
     setNodes(n);
     setRows(c);
+    setOperators(ops);
     setForm((f) => {
       const tenantId = f.tenantId || t[0]?.id || "";
-      const svc = s.find((x) => x.tenantId === tenantId);
-      return { ...f, tenantId, serviceId: f.serviceId || svc?.id || "" };
+      const forTenant = s.filter((x) => x.tenantId === tenantId);
+      return {
+        ...f,
+        tenantId,
+        serviceId: f.serviceId || forTenant[0]?.id || "",
+        nodeIds: f.allNodes ? n.map((x) => x.id) : f.nodeIds,
+      };
     });
+  }
+
+  async function addOperator() {
+    const name = newOperator.trim();
+    if (!name) return;
+    try {
+      const row = await api<Operator>("/admin/operators", { method: "POST", json: { name } });
+      setOperators((prev) => {
+        if (prev.some((o) => o.id === row.id)) return prev;
+        return [...prev, row].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+      });
+      setForm((f) => ({ ...f, operator: row.name }));
+      setNewOperator("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operatör eklenemedi");
+    }
   }
 
   useEffect(() => {
@@ -83,21 +120,36 @@ export function MonitorsPage() {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter(
-      (r) =>
+    return rows.filter((r) => {
+      if (statusFilter !== "all" && r.lastStatus !== statusFilter) return false;
+      if (!s) return true;
+      return (
         r.name.toLowerCase().includes(s) ||
         r.target.toLowerCase().includes(s) ||
         r.type.toLowerCase().includes(s) ||
-        r.service.name.toLowerCase().includes(s)
-    );
-  }, [rows, q]);
+        r.service.name.toLowerCase().includes(s) ||
+        (r.operator || "").toLowerCase().includes(s)
+      );
+    });
+  }, [rows, q, statusFilter]);
 
-  function toggleNode(id: string) {
+  function setAllNodes(on: boolean) {
     setForm((f) => ({
       ...f,
-      nodeIds: f.nodeIds.includes(id) ? f.nodeIds.filter((x) => x !== id) : [...f.nodeIds, id],
+      allNodes: on,
+      nodeIds: on ? nodes.map((n) => n.id) : [],
     }));
+  }
+
+  function toggleNode(id: string) {
+    setForm((f) => {
+      const next = f.nodeIds.includes(id) ? f.nodeIds.filter((x) => x !== id) : [...f.nodeIds, id];
+      return {
+        ...f,
+        nodeIds: next,
+        allNodes: nodes.length > 0 && next.length === nodes.length,
+      };
+    });
   }
 
   function buildConfig() {
@@ -117,7 +169,9 @@ export function MonitorsPage() {
         }
       }
     }
-    if (Number(form.retries) > 0) config.retries = Number(form.retries);
+    if (form.retries !== "" && form.retries != null) {
+      config.retries = Math.max(0, Number(form.retries) || 0);
+    }
     return Object.keys(config).length ? config : undefined;
   }
 
@@ -125,18 +179,25 @@ export function MonitorsPage() {
     e.preventDefault();
     setError("");
     try {
-      if (!form.serviceId) throw new Error("Servis seç");
+      if (!form.serviceId) throw new Error("Hangi servisi izleyeceğini seç");
+      if (!form.name.trim()) throw new Error("Monitör adı yaz");
+      const intervalMs = Math.max(5, Number(form.intervalSec) || 60) * 1000;
+      const timeoutMs = Math.max(1, Number(form.timeoutSec) || 10) * 1000;
+      const nodeIds = form.allNodes ? nodes.map((n) => n.id) : form.nodeIds;
+      if (!nodeIds.length) throw new Error("En az bir node seç (veya Tüm node’lar)");
+
       const config = buildConfig();
       const payload = {
         tenantId: form.tenantId,
         serviceId: form.serviceId,
-        name: form.name,
+        name: form.name.trim(),
         type: form.type,
-        target: form.target,
-        intervalMs: form.intervalMs,
-        timeoutMs: form.timeoutMs,
+        target: form.target.trim(),
+        operator: form.operator.trim() || null,
+        intervalMs,
+        timeoutMs,
         expectedStatus: form.expectedStatus ? Number(form.expectedStatus) : undefined,
-        nodeIds: form.nodeIds,
+        nodeIds,
         enabled: form.enabled,
         config,
       };
@@ -149,7 +210,13 @@ export function MonitorsPage() {
       setEditId(null);
       setShowForm(false);
       setShowAdvanced(false);
-      setForm((f) => ({ ...emptyForm, tenantId: f.tenantId, serviceId: f.serviceId }));
+      setForm((f) => ({
+        ...emptyForm,
+        tenantId: f.tenantId,
+        serviceId: f.serviceId,
+        allNodes: true,
+        nodeIds: nodes.map((n) => n.id),
+      }));
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kaydedilemedi");
@@ -158,6 +225,7 @@ export function MonitorsPage() {
 
   function startEdit(c: Monitor) {
     const cfg = (c.config || {}) as Record<string, unknown>;
+    const nodeIds = c.nodes.map((n) => n.node.id);
     setEditId(c.id);
     setShowForm(true);
     setForm({
@@ -166,10 +234,12 @@ export function MonitorsPage() {
       name: c.name,
       type: c.type,
       target: c.target,
-      intervalMs: c.intervalMs,
-      timeoutMs: c.timeoutMs,
+      operator: c.operator || "",
+      intervalSec: Math.max(1, Math.round(c.intervalMs / 1000)),
+      timeoutSec: Math.max(1, Math.round(c.timeoutMs / 1000)),
       expectedStatus: c.expectedStatus?.toString() || "",
-      nodeIds: c.nodes.map((n) => n.node.id),
+      nodeIds,
+      allNodes: nodes.length > 0 && nodeIds.length === nodes.length,
       enabled: c.enabled,
       method: String(cfg.method || "GET"),
       keyword: String(cfg.keyword || ""),
@@ -196,6 +266,17 @@ export function MonitorsPage() {
             setEditId(null);
             setShowForm((v) => !v);
             setShowAdvanced(false);
+            if (!showForm) {
+              const tenantId = tenants[0]?.id || "";
+              const svc = services.find((x) => x.tenantId === tenantId);
+              setForm({
+                ...emptyForm,
+                tenantId,
+                serviceId: svc?.id || "",
+                allNodes: true,
+                nodeIds: nodes.map((n) => n.id),
+              });
+            }
           }}
         >
           {showForm ? "Kapat" : "+ Yeni monitör"}
@@ -211,13 +292,13 @@ export function MonitorsPage() {
             <div className="row">
               {!editId && (
                 <label>
-                  Tenant
+                  Firma / tenant
                   <select
                     value={form.tenantId}
                     onChange={(e) => {
                       const tenantId = e.target.value;
-                      const svc = services.find((x) => x.tenantId === tenantId);
-                      setForm({ ...form, tenantId, serviceId: svc?.id || "" });
+                      const first = services.find((x) => x.tenantId === tenantId);
+                      setForm({ ...form, tenantId, serviceId: first?.id || "" });
                     }}
                   >
                     {tenants.map((t) => (
@@ -227,27 +308,67 @@ export function MonitorsPage() {
                 </label>
               )}
               <label>
-                Servis
-                <select value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} required>
-                  <option value="">Seç…</option>
-                  {services.filter((s) => s.tenantId === form.tenantId || editId).map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                Hangi servisi izliyoruz?
+                <select
+                  value={form.serviceId}
+                  onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+                  required
+                >
+                  <option value="">Servis seç…</option>
+                  {tenantServices.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.groupName ? `${s.groupName} — ${s.name}` : s.name}
+                    </option>
                   ))}
                 </select>
               </label>
               <label>
-                Tip
+                Kontrol tipi
                 <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                  <option value="http">HTTP(S)</option>
-                  <option value="tcp">TCP</option>
-                  <option value="icmp">ICMP Ping</option>
+                  <option value="http">HTTP / HTTPS (web sitesi)</option>
+                  <option value="tcp">TCP (port açık mı)</option>
+                  <option value="icmp">Ping (ICMP)</option>
+                </select>
+              </label>
+              <label>
+                Operatör
+                <select value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value })}>
+                  <option value="">Yok (boş)</option>
+                  {operators.map((op) => (
+                    <option key={op.id} value={op.name}>{op.name}</option>
+                  ))}
                 </select>
               </label>
             </div>
+            <div className="row" style={{ alignItems: "end" }}>
+              <label>
+                Yeni operatör ekle
+                <input
+                  value={newOperator}
+                  onChange={(e) => setNewOperator(e.target.value)}
+                  placeholder="örn. Türk Telekom"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addOperator();
+                    }
+                  }}
+                />
+              </label>
+              <button type="button" className="secondary" onClick={addOperator}>
+                Operatör kaydet
+              </button>
+            </div>
+            {!tenantServices.length && (
+              <div className="muted" style={{ fontSize: 13 }}>
+                Bu tenant için servis yok. Önce <Link to="/services">Servisler</Link> sayfasından ekle
+                (ör. Çekirdek Ağ, DNS, Müşteri Portalı).
+              </div>
+            )}
             <div className="row">
               <label>
-                İsim
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Portal health" />
+                Monitör adı
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Gateway ping" />
               </label>
               <label>
                 Hedef
@@ -261,12 +382,22 @@ export function MonitorsPage() {
             </div>
             <div className="row">
               <label>
-                Aralık (ms)
-                <input type="number" value={form.intervalMs} onChange={(e) => setForm({ ...form, intervalMs: Number(e.target.value) })} />
+                Aralık (saniye)
+                <input
+                  type="number"
+                  min={5}
+                  value={form.intervalSec}
+                  onChange={(e) => setForm({ ...form, intervalSec: Number(e.target.value) })}
+                />
               </label>
               <label>
-                Timeout (ms)
-                <input type="number" value={form.timeoutMs} onChange={(e) => setForm({ ...form, timeoutMs: Number(e.target.value) })} />
+                Timeout (saniye)
+                <input
+                  type="number"
+                  min={1}
+                  value={form.timeoutSec}
+                  onChange={(e) => setForm({ ...form, timeoutSec: Number(e.target.value) })}
+                />
               </label>
               {form.type === "http" && (
                 <label>
@@ -275,8 +406,18 @@ export function MonitorsPage() {
                 </label>
               )}
               <label>
-                Retry
-                <input type="number" min={0} max={5} value={form.retries} onChange={(e) => setForm({ ...form, retries: e.target.value })} />
+                Tekrar deneme
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={form.retries}
+                  onChange={(e) => setForm({ ...form, retries: e.target.value })}
+                  title="0 = başarıya kadar dene (sınırsız)"
+                />
+                <span className="muted" style={{ fontSize: 11, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
+                  0 = sınırsız (up olana kadar)
+                </span>
               </label>
             </div>
 
@@ -328,15 +469,26 @@ export function MonitorsPage() {
 
             <div>
               <div className="muted" style={{ marginBottom: 8, fontSize: 12, fontWeight: 650 }}>Hangi node’larda çalışsın?</div>
-              <div className="row">
-                {nodes.map((n) => (
-                  <label key={n.id} style={{ display: "flex", gap: 8, alignItems: "center", textTransform: "none", flex: "0 0 auto" }}>
-                    <input type="checkbox" checked={form.nodeIds.includes(n.id)} onChange={() => toggleNode(n.id)} />
-                    {n.name} <span className="muted">({n.location})</span>
-                  </label>
-                ))}
-                {!nodes.length && <span className="muted">Önce Nodes’tan probe ekle</span>}
-              </div>
+              <label style={{ display: "flex", gap: 8, alignItems: "center", textTransform: "none", marginBottom: 10, flex: "0 0 auto" }}>
+                <input type="checkbox" checked={form.allNodes} onChange={(e) => setAllNodes(e.target.checked)} />
+                <strong>Tüm node’lar</strong>
+              </label>
+              {!form.allNodes && (
+                <div className="row">
+                  {nodes.map((n) => (
+                    <label key={n.id} style={{ display: "flex", gap: 8, alignItems: "center", textTransform: "none", flex: "0 0 auto" }}>
+                      <input type="checkbox" checked={form.nodeIds.includes(n.id)} onChange={() => toggleNode(n.id)} />
+                      {n.name} <span className="muted">({n.location})</span>
+                    </label>
+                  ))}
+                  {!nodes.length && <span className="muted">Önce Nodes’tan probe ekle</span>}
+                </div>
+              )}
+              {form.allNodes && nodes.length > 0 && (
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {nodes.map((n) => n.location).join(", ")}
+                </div>
+              )}
             </div>
 
             <div className="row">
@@ -357,16 +509,30 @@ export function MonitorsPage() {
       )}
 
       <div className="toolbar">
-        <input
-          className="search"
-          placeholder="Monitör ara…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+        <input className="search" placeholder="Monitör ara…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="row" style={{ gap: 6 }}>
+          {(
+            [
+              ["all", "Tüm monitörler"],
+              ["up", "Up"],
+              ["down", "Down"],
+              ["degraded", "Degraded"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={statusFilter === key ? undefined : "secondary"}
+              onClick={() => setStatusFilter(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <span className="muted">{filtered.length} monitör</span>
       </div>
 
-      {!filtered.length && <div className="panel"><div className="empty">Monitör yok. Yeni monitör ekle.</div></div>}
+      {!filtered.length && <div className="panel"><div className="empty">Monitör yok.</div></div>}
 
       <div className="monitor-grid">
         {filtered.map((c) => (
@@ -381,7 +547,9 @@ export function MonitorsPage() {
               </div>
               <div className="monitor-meta">
                 <span className="type-pill">{c.type}</span>
+                {c.operator && <span className="type-pill">{c.operator}</span>}
                 <span>{c.lastLatencyMs != null ? `${c.lastLatencyMs} ms` : "—"}</span>
+                <span>her {Math.round(c.intervalMs / 1000)}s</span>
                 <span>{c.nodes.map((n) => n.node.location).join(", ") || "node yok"}</span>
               </div>
               <div className="mono muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 12 }}>
@@ -413,6 +581,3 @@ export function MonitorsPage() {
     </>
   );
 }
-
-/** @deprecated use MonitorsPage */
-export const ChecksPage = MonitorsPage;
