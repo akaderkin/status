@@ -74,18 +74,16 @@ export function MonitorsPage() {
   );
 
   async function load() {
-    const [t, s, n, c, ops] = await Promise.all([
+    const [t, s, n, c] = await Promise.all([
       api<Tenant[]>("/admin/tenants"),
       api<Service[]>("/admin/services"),
       api<Node[]>("/admin/nodes"),
       api<Monitor[]>("/admin/checks"),
-      api<Operator[]>("/admin/operators"),
     ]);
     setTenants(t);
     setServices(s);
     setNodes(n);
     setRows(c);
-    setOperators(ops);
     setForm((f) => {
       const tenantId = f.tenantId || t[0]?.id || "";
       const forTenant = s.filter((x) => x.tenantId === tenantId);
@@ -96,6 +94,12 @@ export function MonitorsPage() {
         nodeIds: f.allNodes ? n.map((x) => x.id) : f.nodeIds,
       };
     });
+    try {
+      const ops = await api<Operator[]>("/admin/operators");
+      setOperators(ops);
+    } catch {
+      setOperators([]);
+    }
   }
 
   async function addOperator() {
